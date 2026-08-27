@@ -29,7 +29,7 @@ export default function HuespedesPage() {
           {guests.map((g) => (
             <div key={g.id} className="rounded-xl border border-line bg-surface p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo font-mono-ui text-xs font-semibold text-paper">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-terracotta font-mono-ui text-xs font-semibold text-paper">
                   {g.fullName
                     .split(" ")
                     .map((p) => p[0])

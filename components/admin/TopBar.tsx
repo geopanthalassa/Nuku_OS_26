@@ -6,7 +6,7 @@ export default function TopBar({ account, title }: { account: Account; title: st
     <header className="flex items-center justify-between border-b border-line bg-surface px-6 py-4">
       <h1 className="font-display text-xl">{title}</h1>
       <div className="flex items-center gap-3">
-        <Pill tone="amber">Modo demo</Pill>
+        <Pill tone="olive">Modo demo</Pill>
         <button
           type="button"
           disabled

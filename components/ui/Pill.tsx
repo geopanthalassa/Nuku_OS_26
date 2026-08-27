@@ -1,6 +1,6 @@
 const TONES = {
   sage: "bg-sage-soft text-sage",
-  amber: "bg-amber-soft text-amber",
+  olive: "bg-olive-soft text-olive",
   rust: "bg-rust-soft text-rust",
   neutral: "bg-surface-2 text-ink-faint",
 } as const;

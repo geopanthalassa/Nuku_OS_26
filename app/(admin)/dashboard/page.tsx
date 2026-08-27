@@ -59,7 +59,7 @@ export default function DashboardPage() {
                       {r.paymentStatus === "paid" ? (
                         <Pill tone="sage">Pagado · {formatMoney(r.totalCents, account.currency)}</Pill>
                       ) : (
-                        <Pill tone="amber">Pendiente · {formatMoney(r.totalCents, account.currency)}</Pill>
+                        <Pill tone="olive">Pendiente · {formatMoney(r.totalCents, account.currency)}</Pill>
                       )}
                     </td>
                   </tr>

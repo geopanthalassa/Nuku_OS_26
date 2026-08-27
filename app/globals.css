@@ -10,14 +10,14 @@
   --ink-soft: #4d5158;
   --ink-faint: #83878f;
   --line: #e4e0d3;
-  --indigo: #2b3a6b;
-  --indigo-bright: #45599e;
-  --amber: #b96a2c;
-  --amber-soft: #f0deb9;
-  --sage: #4f6b4e;
-  --sage-soft: #e2ebe1;
-  --rust: #a8482f;
-  --rust-soft: #f3e0da;
+  --terracotta: #a6512b;
+  --terracotta-bright: #c97645;
+  --olive: #6e6b35;
+  --olive-soft: #e7e3c6;
+  --sage: #5c6b3f;
+  --sage-soft: #e3e6d2;
+  --rust: #9c4430;
+  --rust-soft: #f3ded6;
 
   --background: var(--paper);
   --foreground: var(--ink);
@@ -32,10 +32,10 @@
   --color-ink-soft: var(--ink-soft);
   --color-ink-faint: var(--ink-faint);
   --color-line: var(--line);
-  --color-indigo: var(--indigo);
-  --color-indigo-bright: var(--indigo-bright);
-  --color-amber: var(--amber);
-  --color-amber-soft: var(--amber-soft);
+  --color-terracotta: var(--terracotta);
+  --color-terracotta-bright: var(--terracotta-bright);
+  --color-olive: var(--olive);
+  --color-olive-soft: var(--olive-soft);
   --color-sage: var(--sage);
   --color-sage-soft: var(--sage-soft);
   --color-rust: var(--rust);

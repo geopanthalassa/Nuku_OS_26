@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 // Placeholder de login. La autenticación real (Supabase Auth) se conecta
@@ -6,8 +7,9 @@ import Link from "next/link";
 export default function LoginPage() {
   return (
     <main className="flex min-h-screen flex-1 flex-col items-center justify-center gap-6 bg-paper-alt px-6 text-center">
+      <Image src="/logo/nuku-mark.png" alt="Nuku OS" width={56} height={56} className="rounded-full" />
       <div className="flex items-center gap-2 font-mono-ui text-sm uppercase tracking-widest text-ink-faint">
-        <span className="text-amber">◈</span> Nuku OS
+        Nuku OS
       </div>
       <h1 className="font-display text-3xl">Panel de operación</h1>
       <p className="max-w-md text-sm text-ink-soft">
@@ -17,7 +19,7 @@ export default function LoginPage() {
       </p>
       <Link
         href="/dashboard"
-        className="rounded-lg bg-indigo px-5 py-2.5 text-sm font-medium text-paper transition-opacity hover:opacity-90"
+        className="rounded-lg bg-terracotta px-5 py-2.5 text-sm font-medium text-paper transition-opacity hover:opacity-90"
       >
         Entrar como Kuhane Etno-Hostal
       </Link>
