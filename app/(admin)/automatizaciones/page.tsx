@@ -80,22 +80,32 @@ export default function AutomatizacionesPage() {
                   <div className="text-sm font-medium">{a.label}</div>
                   <div className="mt-0.5 text-xs text-ink-faint">{a.description}</div>
                 </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={a.enabled}
-                  disabled={pendingId === a.id}
-                  onClick={() => toggle(a)}
-                  className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
-                    a.enabled ? "bg-sage" : "bg-surface-2"
-                  }`}
-                >
+                <div className="flex shrink-0 items-center gap-2.5">
                   <span
-                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-surface shadow transition-transform ${
-                      a.enabled ? "translate-x-5" : "translate-x-0.5"
+                    className={`text-xs font-semibold tracking-wide ${
+                      a.enabled ? "text-sage" : "text-ink-faint"
                     }`}
-                  />
-                </button>
+                  >
+                    {a.enabled ? "Activado" : "Desactivado"}
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={a.enabled}
+                    disabled={pendingId === a.id}
+                    onClick={() => toggle(a)}
+                    className={`inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent p-0 shadow-inner ring-1 ring-inset transition-colors duration-200 ease-in-out hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 ${
+                      a.enabled ? "bg-sage ring-sage/40" : "bg-ink/20 ring-ink/15"
+                    }`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`inline-block h-5 w-5 shrink-0 rounded-full bg-white shadow transition-transform duration-200 ease-in-out ${
+                        a.enabled ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

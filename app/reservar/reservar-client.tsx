@@ -18,6 +18,7 @@ export default function ReservarClient() {
   const checkout = params.get("checkout") ?? "";
   const guestsParam = Number(params.get("guests") ?? "2");
   const guests = Number.isFinite(guestsParam) && guestsParam > 0 ? guestsParam : 2;
+  const promo = params.get("promo") ?? "";
 
   const nightCount = useMemo(() => {
     if (!checkin || !checkout) return null;
@@ -45,7 +46,11 @@ export default function ReservarClient() {
           email para confirmar la reserva.
         </p>
 
-        <div className="mt-8 grid grid-cols-1 gap-4 rounded-xl border border-line bg-surface p-5 sm:grid-cols-3">
+        <div
+          className={`mt-8 grid grid-cols-1 gap-4 rounded-xl border border-line bg-surface p-5 ${
+            promo ? "sm:grid-cols-4" : "sm:grid-cols-3"
+          }`}
+        >
           <div>
             <p className="font-mono-ui text-[11px] uppercase tracking-widest text-ink-faint">Llegada</p>
             <p className="mt-1 text-sm text-ink">{checkin || "Por elegir"}</p>
@@ -61,7 +66,21 @@ export default function ReservarClient() {
               {nightCount ? ` · ${nightCount} ${nightCount === 1 ? "noche" : "noches"}` : ""}
             </p>
           </div>
+          {promo && (
+            <div>
+              <p className="font-mono-ui text-[11px] uppercase tracking-widest text-ink-faint">Código</p>
+              <p className="mt-1 text-sm text-terracotta">{promo}</p>
+            </div>
+          )}
         </div>
+
+        {promo && (
+          <p className="mt-3 text-xs text-ink-faint">
+            Código promocional <strong className="text-ink-soft">{promo}</strong> registrado — el equipo de Kuhane lo
+            valida y aplica el descuento al confirmar por WhatsApp o email (todavía no hay tarifas cargadas en el
+            sistema para aplicarlo automáticamente).
+          </p>
+        )}
 
         <div className="mt-10 space-y-4">
           {rooms.map((room) => (
