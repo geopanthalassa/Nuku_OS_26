@@ -25,7 +25,7 @@ export async function GET(req: Request) {
     const { data, error } = await supabase
       .from("reservations")
       .select(
-        "id, check_in, check_out, status, channel, payment_status, promo_code, total_cents, created_at, guests(full_name, email, phone), rooms(name, base_rate_cents)"
+        "id, check_in, check_out, status, channel, payment_status, promo_code, total_cents, stripe_payment_link, tour_interest, tour_notes, created_at, guests(full_name, email, phone), rooms(name, base_rate_cents), reservation_guests(full_name, document_id, is_primary)"
       )
       .eq("account_id", accountId)
       .order("check_in", { ascending: true });
