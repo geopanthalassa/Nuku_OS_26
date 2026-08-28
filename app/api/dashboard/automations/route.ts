@@ -28,6 +28,11 @@ const DEFAULT_AUTOMATIONS: Array<{ template_key: string; label: string; descript
     label: "Recordatorio de pago pendiente",
     description: "Avisa al huésped si el saldo sigue pendiente 48 horas antes de la llegada.",
   },
+  {
+    template_key: "cumpleanos",
+    label: "Saludo de cumpleaños",
+    description: "El día del cumpleaños del huésped (si lo dejó al reservar), le manda un saludo con descuento.",
+  },
 ];
 
 export async function GET(req: Request) {

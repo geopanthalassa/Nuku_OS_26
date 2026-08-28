@@ -18,6 +18,8 @@ const DEFAULT_TEMPLATES: Record<string, string> = {
     "¡Hola {{guest_name}}! Esperamos que hayas disfrutado tu estadía en {{account_name}}. ¿Nos dejarías una reseña? Significa mucho para nosotros.",
   recordatorio_pago:
     "Hola {{guest_name}}, te recordamos que tu reserva en {{account_name}} ({{check_in}} a {{check_out}}) tiene un saldo pendiente. Avísanos si tienes alguna duda.",
+  cumpleanos:
+    "¡Feliz cumpleaños, {{guest_name}}! Todo el equipo de {{account_name}} te manda un abrazo desde Rapa Nui — [descuento de cumpleaños por confirmar] para tu próxima estadía con nosotros.",
 };
 
 interface RenderInput {
@@ -84,4 +86,58 @@ export async function renderAutomationMessage({
     .replaceAll("{{check_out}}", reservation.check_out ?? "");
 
   return { skipped: false, message };
+}
+
+interface BirthdayMessage {
+  guest_id: string;
+  guest_name: string;
+  message: string;
+}
+
+// A diferencia de renderAutomationMessage (que cuelga de UNA reserva),
+// el cumpleaños cuelga del HUÉSPED — puede no tener ninguna reserva activa.
+// n8n llama a esto una vez por día (ver n8n-templates/cumpleanos.json) y
+// este archivo hace todo el trabajo: buscar a quién le toca hoy, respetar
+// el interruptor de la cuenta, y armar el texto de cada uno.
+export async function renderTodaysBirthdayMessages(accountId: string): Promise<BirthdayMessage[]> {
+  const supabase = getSupabaseServerClient();
+
+  const { data: automation } = await supabase
+    .from("automations")
+    .select("enabled, config")
+    .eq("account_id", accountId)
+    .eq("template_key", "cumpleanos")
+    .maybeSingle();
+
+  if (automation && automation.enabled === false) return [];
+
+  const { data: account } = await supabase.from("accounts").select("name").eq("id", accountId).single();
+  const accountName = account?.name ?? "";
+
+  const { data: guests, error } = await supabase
+    .from("guests")
+    .select("id, full_name, birth_date")
+    .eq("account_id", accountId)
+    .not("birth_date", "is", null);
+
+  if (error) throw new Error(`No se pudo leer huéspedes: ${error.message}`);
+
+  const today = new Date();
+  const todayMonth = today.getUTCMonth() + 1;
+  const todayDay = today.getUTCDate();
+
+  const template =
+    (automation?.config as { message_template?: string } | null)?.message_template || DEFAULT_TEMPLATES.cumpleanos;
+
+  return (guests ?? [])
+    .filter((g) => {
+      if (!g.birth_date) return false;
+      const [, month, day] = g.birth_date.split("-").map(Number);
+      return month === todayMonth && day === todayDay;
+    })
+    .map((g) => ({
+      guest_id: g.id,
+      guest_name: g.full_name,
+      message: template.replaceAll("{{guest_name}}", g.full_name).replaceAll("{{account_name}}", accountName),
+    }));
 }
