@@ -25,7 +25,7 @@ export async function GET(req: Request) {
     const { data, error } = await supabase
       .from("reservations")
       .select(
-        "id, check_in, check_out, status, channel, payment_status, promo_code, total_cents, stripe_payment_link, tour_interest, tour_notes, created_at, guests(full_name, email, phone), rooms(name, base_rate_cents), reservation_guests(full_name, document_id, is_primary)"
+        "id, check_in, check_out, status, channel, payment_status, promo_code, total_cents, stripe_payment_link, tour_interest, tour_notes, arrival_flight_time, arrival_flight_number, departure_flight_time, departure_flight_number, airport_transfer_notes, created_at, guests(full_name, email, phone), rooms(name, base_rate_cents), reservation_guests(full_name, document_id, is_primary)"
       )
       .eq("account_id", accountId)
       .order("check_in", { ascending: true });
@@ -54,25 +54,62 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
 
-  const { account_id, id, status } = (body ?? {}) as Record<string, unknown>;
-  if (typeof account_id !== "string" || typeof id !== "string" || typeof status !== "string") {
+  const {
+    account_id,
+    id,
+    status,
+    arrival_flight_time,
+    arrival_flight_number,
+    departure_flight_time,
+    departure_flight_number,
+    airport_transfer_notes,
+  } = (body ?? {}) as Record<string, unknown>;
+  if (typeof account_id !== "string" || typeof id !== "string") {
     return NextResponse.json(
-      { error: "Faltan o son inválidos los campos obligatorios: account_id (string), id (string), status (string)." },
+      { error: "Faltan o son inválidos los campos obligatorios: account_id (string), id (string)." },
       { status: 400 }
     );
   }
-  if (!VALID_STATUSES.includes(status)) {
+  if (status !== undefined && typeof status !== "string") {
+    return NextResponse.json({ error: "status debe ser un string." }, { status: 400 });
+  }
+  if (typeof status === "string" && !VALID_STATUSES.includes(status)) {
     return NextResponse.json(
       { error: `status inválido. Debe ser uno de: ${VALID_STATUSES.join(", ")}.` },
       { status: 400 }
     );
   }
 
+  // Además del cambio de estado, esta ruta también deja editar los datos de
+  // traslado al aeropuerto (hora/número de vuelo) desde el panel — el
+  // huésped puede no haberlos dejado al reservar, o confirmarlos/cambiarlos
+  // más cerca de la fecha, y el equipo lo actualiza acá.
+  const flightPatch: Record<string, string | null> = {};
+  if (typeof arrival_flight_time === "string") flightPatch.arrival_flight_time = arrival_flight_time.trim() || null;
+  if (typeof arrival_flight_number === "string")
+    flightPatch.arrival_flight_number = arrival_flight_number.trim().toUpperCase() || null;
+  if (typeof departure_flight_time === "string")
+    flightPatch.departure_flight_time = departure_flight_time.trim() || null;
+  if (typeof departure_flight_number === "string")
+    flightPatch.departure_flight_number = departure_flight_number.trim().toUpperCase() || null;
+  if (typeof airport_transfer_notes === "string")
+    flightPatch.airport_transfer_notes = airport_transfer_notes.trim() || null;
+
+  if (status === undefined && Object.keys(flightPatch).length === 0) {
+    return NextResponse.json(
+      { error: "No hay nada para actualizar: mandá status y/o los campos de traslado al aeropuerto." },
+      { status: 400 }
+    );
+  }
+
   try {
     const supabase = getSupabaseServerClient();
+    const updatePayload: Record<string, unknown> = { ...flightPatch };
+    if (typeof status === "string") updatePayload.status = status;
+
     const { error } = await supabase
       .from("reservations")
-      .update({ status })
+      .update(updatePayload)
       .eq("id", id)
       .eq("account_id", account_id); // doble filtro: nunca tocar una fila de otra cuenta
 

@@ -42,6 +42,10 @@ export default function ReservarClient() {
   const [companions, setCompanions] = useState<GuestForm[]>([]);
   const [wantsTours, setWantsTours] = useState(false);
   const [tourNotes, setTourNotes] = useState("");
+  const [arrivalFlightTime, setArrivalFlightTime] = useState("");
+  const [arrivalFlightNumber, setArrivalFlightNumber] = useState("");
+  const [departureFlightTime, setDepartureFlightTime] = useState("");
+  const [departureFlightNumber, setDepartureFlightNumber] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -132,6 +136,10 @@ export default function ReservarClient() {
           })),
           tour_interest: wantsTours,
           tour_notes: wantsTours ? tourNotes.trim() || undefined : undefined,
+          arrival_flight_time: arrivalFlightTime || undefined,
+          arrival_flight_number: arrivalFlightNumber.trim() || undefined,
+          departure_flight_time: departureFlightTime || undefined,
+          departure_flight_number: departureFlightNumber.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -313,6 +321,52 @@ export default function ReservarClient() {
                 </div>
               </div>
             ))}
+
+            <div className="border-t border-line pt-5">
+              <p className="font-mono-ui text-[11px] uppercase tracking-widest text-ink-faint">
+                Traslado al aeropuerto
+              </p>
+              <p className="mt-1 text-xs text-ink-faint">
+                Kuhane te busca al llegar y te lleva de vuelta a la salida — si ya tenés el vuelo, dejanos el dato acá.
+                Si todavía no lo sabés, no hay problema: lo confirmamos más cerca de la fecha.
+              </p>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="mb-1 text-[11px] text-ink-faint">Llegada</p>
+                  <div className="flex gap-2">
+                    <input
+                      value={arrivalFlightTime}
+                      onChange={(e) => setArrivalFlightTime(e.target.value)}
+                      type="time"
+                      className="w-1/2 rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
+                    />
+                    <input
+                      value={arrivalFlightNumber}
+                      onChange={(e) => setArrivalFlightNumber(e.target.value)}
+                      placeholder="N° de vuelo"
+                      className="w-1/2 rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1 text-[11px] text-ink-faint">Salida</p>
+                  <div className="flex gap-2">
+                    <input
+                      value={departureFlightTime}
+                      onChange={(e) => setDepartureFlightTime(e.target.value)}
+                      type="time"
+                      className="w-1/2 rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
+                    />
+                    <input
+                      value={departureFlightNumber}
+                      onChange={(e) => setDepartureFlightNumber(e.target.value)}
+                      placeholder="N° de vuelo"
+                      className="w-1/2 rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
 
             <div className="border-t border-line pt-5">
               <label className="flex items-start gap-3">

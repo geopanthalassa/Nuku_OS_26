@@ -20,7 +20,11 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 //   companions?: [{ full_name, document_id?, birth_date?, phone?, email? }],
 //   tour_interest?: boolean,
 //   tour_notes?: string,
-//   promo_code?
+//   promo_code?,
+//   arrival_flight_time?, arrival_flight_number?,
+//   departure_flight_time?, departure_flight_number?
+//   (datos de vuelo: opcionales, Kuhane hace el traslado al aeropuerto y los
+//   necesita para coordinar — se pueden confirmar/editar después desde el panel)
 // }
 export async function POST(req: Request) {
   let body: unknown;
@@ -30,8 +34,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
 
-  const { account_id, room_id, check_in, check_out, guest, companions, tour_interest, tour_notes, promo_code } =
-    (body ?? {}) as Record<string, unknown>;
+  const {
+    account_id,
+    room_id,
+    check_in,
+    check_out,
+    guest,
+    companions,
+    tour_interest,
+    tour_notes,
+    promo_code,
+    arrival_flight_time,
+    arrival_flight_number,
+    departure_flight_time,
+    departure_flight_number,
+  } = (body ?? {}) as Record<string, unknown>;
 
   if (
     typeof account_id !== "string" ||
@@ -137,6 +154,20 @@ export async function POST(req: Request) {
         promo_code: typeof promo_code === "string" && promo_code.trim() ? promo_code.trim().toUpperCase() : null,
         tour_interest: tour_interest === true,
         tour_notes: typeof tour_notes === "string" && tour_notes.trim() ? tour_notes.trim() : null,
+        arrival_flight_time:
+          typeof arrival_flight_time === "string" && arrival_flight_time.trim() ? arrival_flight_time.trim() : null,
+        arrival_flight_number:
+          typeof arrival_flight_number === "string" && arrival_flight_number.trim()
+            ? arrival_flight_number.trim().toUpperCase()
+            : null,
+        departure_flight_time:
+          typeof departure_flight_time === "string" && departure_flight_time.trim()
+            ? departure_flight_time.trim()
+            : null,
+        departure_flight_number:
+          typeof departure_flight_number === "string" && departure_flight_number.trim()
+            ? departure_flight_number.trim().toUpperCase()
+            : null,
       })
       .select("id")
       .single();
