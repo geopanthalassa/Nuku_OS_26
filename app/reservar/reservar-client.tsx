@@ -19,9 +19,29 @@ type GuestForm = {
   email: string;
   phone: string;
   birth_date: string;
+  dietary_vegan: boolean;
+  dietary_vegetarian: boolean;
+  dietary_celiac: boolean;
+  dietary_lactose_free: boolean;
+  dietary_other: string;
+  mobility_assistance: boolean;
+  mobility_notes: string;
 };
 
-const EMPTY_GUEST: GuestForm = { full_name: "", document_id: "", email: "", phone: "", birth_date: "" };
+const EMPTY_GUEST: GuestForm = {
+  full_name: "",
+  document_id: "",
+  email: "",
+  phone: "",
+  birth_date: "",
+  dietary_vegan: false,
+  dietary_vegetarian: false,
+  dietary_celiac: false,
+  dietary_lactose_free: false,
+  dietary_other: "",
+  mobility_assistance: false,
+  mobility_notes: "",
+};
 
 // Página pública de disponibilidad — a la que apunta el panel "Reservar" de
 // kuhane-web. Fase 0: sin pagos automáticos todavía, pero la solicitud ya
@@ -126,6 +146,13 @@ export default function ReservarClient() {
             email: guestForm.email.trim() || undefined,
             phone: guestForm.phone.trim() || undefined,
             birth_date: guestForm.birth_date || undefined,
+            dietary_vegan: guestForm.dietary_vegan,
+            dietary_vegetarian: guestForm.dietary_vegetarian,
+            dietary_celiac: guestForm.dietary_celiac,
+            dietary_lactose_free: guestForm.dietary_lactose_free,
+            dietary_other: guestForm.dietary_other.trim() || undefined,
+            mobility_assistance: guestForm.mobility_assistance,
+            mobility_notes: guestForm.mobility_assistance ? guestForm.mobility_notes.trim() || undefined : undefined,
           },
           companions: companions.map((c) => ({
             full_name: c.full_name.trim(),
@@ -133,6 +160,13 @@ export default function ReservarClient() {
             email: c.email.trim() || undefined,
             phone: c.phone.trim() || undefined,
             birth_date: c.birth_date || undefined,
+            dietary_vegan: c.dietary_vegan,
+            dietary_vegetarian: c.dietary_vegetarian,
+            dietary_celiac: c.dietary_celiac,
+            dietary_lactose_free: c.dietary_lactose_free,
+            dietary_other: c.dietary_other.trim() || undefined,
+            mobility_assistance: c.mobility_assistance,
+            mobility_notes: c.mobility_assistance ? c.mobility_notes.trim() || undefined : undefined,
           })),
           tour_interest: wantsTours,
           tour_notes: wantsTours ? tourNotes.trim() || undefined : undefined,
@@ -207,6 +241,60 @@ export default function ReservarClient() {
           <p className="mt-1 text-[11px] text-ink-faint">
             Fecha de nacimiento — opcional, para saludar con algo especial en el cumpleaños.
           </p>
+        </div>
+
+        <div className="sm:col-span-2 border-t border-line pt-3">
+          <p className="text-[11px] text-ink-faint">
+            Preferencias para el desayuno — para que la cocina prepare algo apropiado.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+            {(
+              [
+                ["dietary_vegan", "Vegano"],
+                ["dietary_vegetarian", "Vegetariano"],
+                ["dietary_celiac", "Celíaco / sin gluten"],
+                ["dietary_lactose_free", "Sin lactosa"],
+              ] as const
+            ).map(([field, label]) => (
+              <label key={`${keyPrefix}-${field}`} className="flex items-center gap-2 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={value[field]}
+                  onChange={(e) => onChange({ [field]: e.target.checked } as Partial<GuestForm>)}
+                  className="h-4 w-4 rounded border-line accent-terracotta"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          <input
+            key={`${keyPrefix}-dietary-other`}
+            value={value.dietary_other}
+            onChange={(e) => onChange({ dietary_other: e.target.value })}
+            placeholder="Otra alergia o preferencia alimentaria (opcional)"
+            className="mt-2 w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
+          />
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              checked={value.mobility_assistance}
+              onChange={(e) => onChange({ mobility_assistance: e.target.checked })}
+              className="mt-0.5 h-4 w-4 rounded border-line accent-terracotta"
+            />
+            <span className="text-sm text-ink">Necesita algún tipo de asistencia de movilidad</span>
+          </label>
+          {value.mobility_assistance && (
+            <input
+              key={`${keyPrefix}-mobility-notes`}
+              value={value.mobility_notes}
+              onChange={(e) => onChange({ mobility_notes: e.target.value })}
+              placeholder="Contanos qué necesitás (silla de ruedas, dificultad para escaleras, etc.)"
+              className="mt-2 w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
+            />
+          )}
         </div>
       </div>
     );

@@ -67,24 +67,53 @@ export async function POST(req: Request) {
     );
   }
 
+  type DietaryFields = {
+    dietary_vegan?: boolean;
+    dietary_vegetarian?: boolean;
+    dietary_celiac?: boolean;
+    dietary_lactose_free?: boolean;
+    dietary_other?: string;
+    mobility_assistance?: boolean;
+    mobility_notes?: string;
+  };
+
+  // Preferencias de desayuno (vegano/vegetariano/celíaco/sin lactosa/otra) y
+  // asistencia de movilidad — por persona, no por reserva, porque en un
+  // mismo grupo puede haber necesidades distintas. Alimenta la "ficha de
+  // desayunos" del panel (/desayunos).
+  function dietaryPatch(d: DietaryFields) {
+    return {
+      dietary_vegan: d.dietary_vegan === true,
+      dietary_vegetarian: d.dietary_vegetarian === true,
+      dietary_celiac: d.dietary_celiac === true,
+      dietary_lactose_free: d.dietary_lactose_free === true,
+      dietary_other: typeof d.dietary_other === "string" && d.dietary_other.trim() ? d.dietary_other.trim() : null,
+      mobility_assistance: d.mobility_assistance === true,
+      mobility_notes:
+        typeof d.mobility_notes === "string" && d.mobility_notes.trim() ? d.mobility_notes.trim() : null,
+    };
+  }
+
   const guestInfo = guest as {
     full_name?: string;
     email?: string;
     phone?: string;
     birth_date?: string;
     document_id?: string;
-  };
+  } & DietaryFields;
   if (!guestInfo.full_name || typeof guestInfo.full_name !== "string") {
     return NextResponse.json({ error: "Falta guest.full_name." }, { status: 400 });
   }
 
-  const companionList = (Array.isArray(companions) ? companions : []) as Array<{
-    full_name?: string;
-    document_id?: string;
-    birth_date?: string;
-    phone?: string;
-    email?: string;
-  }>;
+  const companionList = (Array.isArray(companions) ? companions : []) as Array<
+    {
+      full_name?: string;
+      document_id?: string;
+      birth_date?: string;
+      phone?: string;
+      email?: string;
+    } & DietaryFields
+  >;
   for (const c of companionList) {
     if (!c || typeof c.full_name !== "string" || !c.full_name.trim()) {
       return NextResponse.json({ error: "Cada acompañante necesita al menos su nombre completo." }, { status: 400 });
@@ -186,6 +215,7 @@ export async function POST(req: Request) {
         phone: guestInfo.phone || null,
         email: guestInfo.email || null,
         is_primary: true,
+        ...dietaryPatch(guestInfo),
       },
       ...companionList.map((c) => ({
         account_id,
@@ -196,6 +226,7 @@ export async function POST(req: Request) {
         phone: c.phone || null,
         email: c.email || null,
         is_primary: false,
+        ...dietaryPatch(c),
       })),
     ];
 

@@ -32,7 +32,21 @@ type Reservation = {
   total_cents: number | null;
   guests: { full_name: string; email: string | null; phone: string | null } | { full_name: string; email: string | null; phone: string | null }[] | null;
   rooms: { name: string; base_rate_cents: number | null } | { name: string; base_rate_cents: number | null }[] | null;
-  reservation_guests: { full_name: string; document_id: string | null; is_primary: boolean }[] | null;
+  reservation_guests:
+    | {
+        id: string;
+        full_name: string;
+        document_id: string | null;
+        is_primary: boolean;
+        dietary_vegan: boolean;
+        dietary_vegetarian: boolean;
+        dietary_celiac: boolean;
+        dietary_lactose_free: boolean;
+        dietary_other: string | null;
+        mobility_assistance: boolean;
+        mobility_notes: string | null;
+      }[]
+    | null;
   tour_interest: boolean;
   tour_notes: string | null;
   stripe_payment_link?: string | null;
@@ -387,16 +401,37 @@ export default function ReservasPage() {
                               Reserva antigua sin este detalle todavía — solo se guardó el nombre del titular.
                             </p>
                           ) : (
-                            <ul className="mt-2 space-y-1">
-                              {people.map((p, i) => (
-                                <li key={i} className="flex items-center gap-2 text-sm text-ink">
-                                  <span className="font-medium">{p.full_name}</span>
-                                  {p.is_primary && <Pill tone="neutral">Titular</Pill>}
-                                  <span className="text-ink-faint">
-                                    {p.document_id ? `RUT/pasaporte: ${p.document_id}` : "sin identificación registrada"}
-                                  </span>
-                                </li>
-                              ))}
+                            <ul className="mt-2 space-y-1.5">
+                              {people.map((p, i) => {
+                                const dietTags = [
+                                  p.dietary_vegan && "Vegano",
+                                  p.dietary_vegetarian && "Vegetariano",
+                                  p.dietary_celiac && "Celíaco",
+                                  p.dietary_lactose_free && "Sin lactosa",
+                                ].filter(Boolean) as string[];
+                                return (
+                                  <li key={p.id ?? i} className="flex flex-wrap items-center gap-1.5 text-sm text-ink">
+                                    <span className="font-medium">{p.full_name}</span>
+                                    {p.is_primary && <Pill tone="neutral">Titular</Pill>}
+                                    <span className="text-ink-faint">
+                                      {p.document_id ? `RUT/pasaporte: ${p.document_id}` : "sin identificación registrada"}
+                                    </span>
+                                    {dietTags.map((tag) => (
+                                      <Pill key={tag} tone="olive">
+                                        {tag}
+                                      </Pill>
+                                    ))}
+                                    {p.dietary_other && (
+                                      <span className="text-xs text-terracotta">· {p.dietary_other}</span>
+                                    )}
+                                    {p.mobility_assistance && (
+                                      <Pill tone="rust">
+                                        Movilidad{p.mobility_notes ? `: ${p.mobility_notes}` : ""}
+                                      </Pill>
+                                    )}
+                                  </li>
+                                );
+                              })}
                             </ul>
                           )}
                           {r.tour_interest && (
