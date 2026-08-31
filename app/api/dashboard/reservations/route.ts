@@ -97,7 +97,7 @@ export async function POST(req: Request) {
 
   if (status === undefined && Object.keys(flightPatch).length === 0) {
     return NextResponse.json(
-      { error: "No hay nada para actualizar: mandá status y/o los campos de traslado al aeropuerto." },
+      { error: "No hay nada para actualizar: manda status y/o los campos de traslado al aeropuerto." },
       { status: 400 }
     );
   }

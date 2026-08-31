@@ -4,7 +4,7 @@ export default function PagoCanceladoPage() {
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rust-soft text-2xl text-rust">✕</div>
       <h1 className="font-display text-2xl text-ink">Pago no completado</h1>
       <p className="max-w-sm text-sm text-ink-soft">
-        No se realizó ningún cobro. Si fue un error, podés pedirle al equipo de Kuhane que te mande el link de pago
+        No se realizó ningún cobro. Si fue un error, puedes pedirle al equipo de Kuhane que te mande el link de pago
         de nuevo.
       </p>
     </main>

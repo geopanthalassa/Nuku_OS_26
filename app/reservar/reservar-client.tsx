@@ -291,7 +291,7 @@ export default function ReservarClient() {
               key={`${keyPrefix}-mobility-notes`}
               value={value.mobility_notes}
               onChange={(e) => onChange({ mobility_notes: e.target.value })}
-              placeholder="Contanos qué necesitás (silla de ruedas, dificultad para escaleras, etc.)"
+              placeholder="Cuéntanos qué necesitas (silla de ruedas, dificultad para escaleras, etc.)"
               className="mt-2 w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
             />
           )}
@@ -314,7 +314,7 @@ export default function ReservarClient() {
         <h1 className="font-display mt-5 text-3xl text-ink sm:text-4xl">Disponibilidad</h1>
         <p className="mt-3 max-w-xl text-sm leading-relaxed text-ink-soft">
           Este sistema de reservas está en fase de pruebas: todavía no procesa pagos ni
-          confirma automáticamente. Elige una habitación, dejanos tus datos y te contactamos
+          confirma automáticamente. Elige una habitación, déjanos tus datos y te contactamos
           por WhatsApp o email para confirmar la reserva.
         </p>
 
@@ -415,8 +415,8 @@ export default function ReservarClient() {
                 Traslado al aeropuerto
               </p>
               <p className="mt-1 text-xs text-ink-faint">
-                Kuhane te busca al llegar y te lleva de vuelta a la salida — si ya tenés el vuelo, dejanos el dato acá.
-                Si todavía no lo sabés, no hay problema: lo confirmamos más cerca de la fecha.
+                Kuhane te busca al llegar y te lleva de vuelta a la salida — si ya tienes el vuelo, déjanos el dato acá.
+                Si todavía no lo sabes, no hay problema: lo confirmamos más cerca de la fecha.
               </p>
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
@@ -472,7 +472,7 @@ export default function ReservarClient() {
                 <textarea
                   value={tourNotes}
                   onChange={(e) => setTourNotes(e.target.value)}
-                  placeholder="Contanos qué te interesa (ej: tour a Rano Raraku, buceo un día, cabalgata) — el equipo te cotiza junto con la reserva."
+                  placeholder="Cuéntanos qué te interesa (ej: tour a Rano Raraku, buceo un día, cabalgata) — el equipo te cotiza junto con la reserva."
                   rows={3}
                   className="mt-3 w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
                 />

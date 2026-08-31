@@ -178,7 +178,7 @@ export default function BandejaPage() {
           <div className="flex-1 space-y-3 overflow-y-auto p-4">
             {!selectedId && (!messages || messages.length === 0) && (
               <p className="text-sm text-ink-soft">
-                Escribí acá abajo como si fueras un huésped. El mensaje pasa por el mismo motor que usaría
+                Escribe acá abajo como si fueras un huésped. El mensaje pasa por el mismo motor que usaría
                 WhatsApp o Instagram (<code>/api/concierge/inbound</code>) y responde con IA real, usando los datos
                 cargados para esta cuenta en <code>concierge_settings</code>.
               </p>
@@ -202,7 +202,7 @@ export default function BandejaPage() {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendTestMessage()}
-              placeholder="Escribí un mensaje de huésped…"
+              placeholder="Escribe un mensaje de huésped…"
               disabled={sending}
               className="flex-1 rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta disabled:opacity-60"
             />

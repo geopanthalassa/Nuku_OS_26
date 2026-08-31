@@ -299,7 +299,7 @@ export default function CalendarioPage() {
       <main className="flex-1 space-y-5 p-6">
         <p className="max-w-2xl text-sm text-ink-soft">
           Vista por día de quién llega y quién se va — pensada para organizar el traslado al aeropuerto, ya que Kuhane
-          busca y lleva de vuelta a cada huésped. Elegí un día para ver los detalles y cargar hora de vuelo.
+          busca y lleva de vuelta a cada huésped. Elige un día para ver los detalles y cargar hora de vuelo.
         </p>
 
         {error && (

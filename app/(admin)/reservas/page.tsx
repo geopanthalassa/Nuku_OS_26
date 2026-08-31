@@ -121,7 +121,7 @@ export default function ReservasPage() {
   async function generatePaymentLink(r: Reservation) {
     const pesos = Number(amountInput.replace(/[^0-9.]/g, ""));
     if (!Number.isFinite(pesos) || pesos <= 0) {
-      setPaymentError("Ingresá un monto válido antes de generar el link.");
+      setPaymentError("Ingresa un monto válido antes de generar el link.");
       return;
     }
     setPendingId(r.id);
