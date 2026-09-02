@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { checkAvailability, isOverlapConstraintError } from "@/lib/availability";
 
 // POST /api/reservations/request
 //
@@ -123,6 +124,18 @@ export async function POST(req: Request) {
   try {
     const supabase = getSupabaseServerClient();
 
+    // Fase 1, Checkpoint E: chequeo de disponibilidad antes de crear nada.
+    // Da un mensaje claro en el caso común; la garantía real contra dos
+    // solicitudes casi simultáneas para las mismas fechas es la exclusion
+    // constraint de la base (ver el catch de más abajo, isOverlapConstraintError).
+    const availability = await checkAvailability({ accountId: account_id, roomId: room_id, checkIn: check_in, checkOut: check_out });
+    if (!availability.available) {
+      return NextResponse.json(
+        { error: "Esa habitación ya está reservada para esas fechas. Elige otras fechas o contáctanos para ver alternativas." },
+        { status: 409 }
+      );
+    }
+
     // Buscar huésped existente por email o teléfono dentro de la cuenta;
     // si no existe, crearlo. Si existe pero mandó datos nuevos que antes no
     // tenía (fecha de nacimiento, identificación), se los completamos.
@@ -201,7 +214,22 @@ export async function POST(req: Request) {
       .select("id")
       .single();
 
-    if (resError) throw new Error(`No se pudo crear la solicitud de reserva: ${resError.message}`);
+    if (resError) {
+      // Condición de carrera: alguien más reservó estas mismas fechas entre
+      // el chequeo de checkAvailability() de arriba y este insert. La
+      // exclusion constraint de la base (reservations_no_overlap) es la que
+      // realmente lo frenó — acá solo lo traducimos a un mensaje claro.
+      if (isOverlapConstraintError(resError)) {
+        return NextResponse.json(
+          {
+            error:
+              "Esa habitación se acaba de reservar para esas fechas (alguien más la tomó justo antes). Elige otras fechas o contáctanos.",
+          },
+          { status: 409 }
+        );
+      }
+      throw new Error(`No se pudo crear la solicitud de reserva: ${resError.message}`);
+    }
 
     // Registrar a todas las personas que van a ingresar a la isla con esta
     // reserva: el titular primero, después cada acompañante.

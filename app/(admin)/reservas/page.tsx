@@ -5,7 +5,8 @@ import TopBar from "@/components/admin/TopBar";
 import Pill from "@/components/ui/Pill";
 import { demoWorkspace } from "@/lib/mock-data";
 import { formatMoney, formatDateRange, nights } from "@/lib/format";
-import { CURRENT_ACCOUNT_ID } from "@/lib/current-account";
+import { useCurrentAccount } from "@/lib/account-context";
+import { authHeader } from "@/lib/supabase/auth-header";
 
 const STATUS_TONE = {
   requested: "olive",
@@ -58,7 +59,8 @@ function one<T>(rel: T | T[] | null): T | null {
 }
 
 export default function ReservasPage() {
-  const { account } = demoWorkspace; // nombre/branding del TopBar — solo texto de UI
+  const { accountId, accountName } = useCurrentAccount();
+  const account = { ...demoWorkspace.account, name: accountName ?? demoWorkspace.account.name };
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
   const [currency, setCurrency] = useState("CLP");
   const [error, setError] = useState<string | null>(null);
@@ -72,27 +74,34 @@ export default function ReservasPage() {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  function load() {
-    fetch(`/api/dashboard/reservations?account_id=${CURRENT_ACCOUNT_ID}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.error) throw new Error(data.error);
-        setReservations(data.reservations);
-        setCurrency(data.currency);
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : "Error desconocido"));
+  async function load() {
+    if (!accountId) return;
+    try {
+      const res = await fetch("/api/dashboard/reservations", { headers: await authHeader() });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setReservations(data.reservations);
+      setCurrency(data.currency);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    }
   }
 
-  useEffect(load, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId]);
 
   async function updateStatus(r: Reservation, status: string) {
+    if (!accountId) return;
     setPendingId(r.id);
     setError(null);
     try {
       const res = await fetch("/api/dashboard/reservations", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ account_id: CURRENT_ACCOUNT_ID, id: r.id, status }),
+        headers: { "content-type": "application/json", ...(await authHeader()) },
+        body: JSON.stringify({ id: r.id, status }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -119,6 +128,7 @@ export default function ReservasPage() {
   }
 
   async function generatePaymentLink(r: Reservation) {
+    if (!accountId) return;
     const pesos = Number(amountInput.replace(/[^0-9.]/g, ""));
     if (!Number.isFinite(pesos) || pesos <= 0) {
       setPaymentError("Ingresa un monto válido antes de generar el link.");
@@ -129,9 +139,8 @@ export default function ReservasPage() {
     try {
       const res = await fetch("/api/payments/create-checkout-session", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...(await authHeader()) },
         body: JSON.stringify({
-          account_id: CURRENT_ACCOUNT_ID,
           reservation_id: r.id,
           amount_cents: Math.round(pesos * 100), // misma convención interna que el resto de la app
           currency,

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateConciergeReply } from "@/lib/concierge";
+import { requireSessionOrSharedSecret, unauthorizedResponseBody } from "@/lib/auth/require-account";
 
 // POST /api/concierge/reply
 // Genera (y guarda) la respuesta del Concierge IA para un mensaje dentro de
@@ -10,6 +11,11 @@ import { generateConciergeReply } from "@/lib/concierge";
 // Para el caso de uso normal — un mensaje que llega desde WhatsApp/
 // Instagram/email y todavía no tiene conversación — usar
 // /api/concierge/inbound en su lugar, que crea todo lo que falte.
+//
+// Checkpoint C (Fase 1): mismo esquema dual que /api/concierge/inbound —
+// sesión real del panel O el header x-nuku-secret (ver
+// lib/auth/require-account.ts). Esta ruta todavía no está conectada a
+// ningún botón del panel, pero quedaba con el mismo hueco de autorización.
 //
 // body: { account_id: string, conversation_id: string, guest_message: string }
 export async function POST(req: Request) {
@@ -27,6 +33,13 @@ export async function POST(req: Request) {
       { error: "Faltan o son inválidos los campos obligatorios: account_id, conversation_id, guest_message (todos string)." },
       { status: 400 }
     );
+  }
+
+  try {
+    await requireSessionOrSharedSecret(req, account_id);
+  } catch (err) {
+    const { error, status } = unauthorizedResponseBody(err);
+    return NextResponse.json({ error }, { status });
   }
 
   try {

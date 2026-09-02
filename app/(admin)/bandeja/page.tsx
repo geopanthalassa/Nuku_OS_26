@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import TopBar from "@/components/admin/TopBar";
 import Pill from "@/components/ui/Pill";
 import { demoWorkspace } from "@/lib/mock-data";
-import { CURRENT_ACCOUNT_ID } from "@/lib/current-account";
+import { useCurrentAccount } from "@/lib/account-context";
+import { authHeader } from "@/lib/supabase/auth-header";
 
 const CHANNEL_LABEL: Record<string, string> = {
   whatsapp: "WhatsApp",
@@ -13,11 +14,11 @@ const CHANNEL_LABEL: Record<string, string> = {
   test: "Prueba",
 };
 
-// Canal + external_id fijos para el hilo de prueba del panel: así todos los
-// mensajes que se manden desde acá quedan en UNA sola conversación en vez
-// de crear una nueva cada vez (mismo patrón que usaría un canal real).
+// Canal fijo para el hilo de prueba del panel: así todos los mensajes que
+// se manden desde acá quedan en UNA sola conversación en vez de crear una
+// nueva cada vez (mismo patrón que usaría un canal real). El external_id
+// depende de la cuenta activa, así que se calcula dentro del componente.
 const TEST_CHANNEL = "test";
-const TEST_EXTERNAL_ID = `panel-${CURRENT_ACCOUNT_ID}`;
 
 type ConversationSummary = {
   id: string;
@@ -46,7 +47,9 @@ function timeAgo(iso: string | null) {
 }
 
 export default function BandejaPage() {
-  const { account } = demoWorkspace;
+  const { accountId, accountName } = useCurrentAccount();
+  const account = { ...demoWorkspace.account, name: accountName ?? demoWorkspace.account.name };
+  const testExternalId = useMemo(() => (accountId ? `panel-${accountId}` : null), [accountId]);
   const [conversations, setConversations] = useState<ConversationSummary[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[] | null>(null);
@@ -56,37 +59,46 @@ export default function BandejaPage() {
   const threadEndRef = useRef<HTMLDivElement>(null);
 
   async function loadConversations(selectAfter?: "test") {
-    const res = await fetch(`/api/dashboard/conversations?account_id=${CURRENT_ACCOUNT_ID}`);
+    if (!accountId) return;
+    const res = await fetch("/api/dashboard/conversations", { headers: await authHeader() });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     setConversations(data.conversations);
 
-    if (selectAfter === "test") {
+    if (selectAfter === "test" && testExternalId) {
       const testConv = (data.conversations as ConversationSummary[]).find(
-        (c) => c.channel === TEST_CHANNEL && c.external_id === TEST_EXTERNAL_ID
+        (c) => c.channel === TEST_CHANNEL && c.external_id === testExternalId
       );
       if (testConv) setSelectedId(testConv.id);
     }
   }
 
   useEffect(() => {
+    if (!accountId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadConversations().catch((err) => setError(err instanceof Error ? err.message : "Error desconocido"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [accountId]);
 
   useEffect(() => {
-    if (!selectedId) {
+    if (!selectedId || !accountId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMessages(null);
       return;
     }
-    fetch(`/api/dashboard/conversations/${selectedId}/messages?account_id=${CURRENT_ACCOUNT_ID}`)
-      .then((res) => res.json())
-      .then((data) => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/dashboard/conversations/${selectedId}/messages`, {
+          headers: await authHeader(),
+        });
+        const data = await res.json();
         if (data.error) throw new Error(data.error);
         setMessages(data.messages);
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : "Error desconocido"));
-  }, [selectedId]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Error desconocido");
+      }
+    })();
+  }, [selectedId, accountId]);
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -94,7 +106,7 @@ export default function BandejaPage() {
 
   async function sendTestMessage() {
     const text = draft.trim();
-    if (!text || sending) return;
+    if (!text || sending || !accountId || !testExternalId) return;
     setSending(true);
     setError(null);
     setDraft("");
@@ -102,11 +114,11 @@ export default function BandejaPage() {
     try {
       const res = await fetch("/api/concierge/inbound", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...(await authHeader()) },
         body: JSON.stringify({
-          account_id: CURRENT_ACCOUNT_ID,
+          account_id: accountId,
           channel: TEST_CHANNEL,
-          external_id: TEST_EXTERNAL_ID,
+          external_id: testExternalId,
           guest_message: text,
           guest: { full_name: "Prueba desde el panel" },
         }),
@@ -116,9 +128,9 @@ export default function BandejaPage() {
 
       await loadConversations("test");
       if (data.conversation_id) {
-        const msgRes = await fetch(
-          `/api/dashboard/conversations/${data.conversation_id}/messages?account_id=${CURRENT_ACCOUNT_ID}`
-        );
+        const msgRes = await fetch(`/api/dashboard/conversations/${data.conversation_id}/messages`, {
+          headers: await authHeader(),
+        });
         const msgData = await msgRes.json();
         if (!msgData.error) setMessages(msgData.messages);
       }
@@ -142,7 +154,7 @@ export default function BandejaPage() {
             {conversations === null && <p className="p-4 text-sm text-ink-faint">Cargando…</p>}
             {conversations?.length === 0 && (
               <p className="p-4 text-sm text-ink-faint">
-                Todavía no hay conversaciones reales — probá el Concierge acá al lado para crear la primera.
+                Todavía no hay conversaciones reales — prueba el Concierge acá al lado para crear la primera.
               </p>
             )}
             {conversations?.map((c) => (

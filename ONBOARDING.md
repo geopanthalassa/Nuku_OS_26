@@ -32,15 +32,49 @@ Ver `n8n-templates/README.md`. En corto: se duplican los workflows,
 se pega el `account_id` de este cliente, se conectan sus credenciales de
 WhatsApp/Instagram/email, se activa.
 
-## 3. Acceso al panel (pendiente — Fase 2)
+## 3. Acceso al panel — Fase 1, ya construida
 
-Hoy el panel (`/dashboard`, `/reservas`, etc.) entra directo sin login real
-("Entrar como Kuhane Etno-Hostal"). El esquema ya tiene `account_members`
-listo para Supabase Auth (un usuario puede pertenecer a más de una cuenta),
-pero conectar el login real y hacer que cada pantalla lea de Supabase en vez
-de `lib/mock-data.ts` es la próxima pieza grande — no estaba pedida todavía
-y es un cambio más grande que el motor de IA, así que quedó afuera de esta
-vuelta a propósito. Se puede priorizar cuando digas.
+El panel ya no entra directo ni usa un usuario/clave fijo comparado en el
+cliente: `/login` y `/registro` son formularios reales contra Supabase
+Auth, y `account_members` (antes vacía) es lo que decide a qué cuenta
+pertenece cada usuario que inicia sesión.
+
+Cómo funciona para un cliente **nuevo**: entra a `/registro`, carga el
+nombre de su alojamiento, su email y una contraseña — eso crea su usuario
+de Supabase Auth, su fila en `accounts` y el vínculo en `account_members`
+(rol `owner`), todo en una sola llamada a `/api/auth/signup`. No hay que
+tocar SQL a mano para un cliente nuevo.
+
+Cómo funciona para **Kuhane** (la cuenta piloto, con datos reales ya
+cargados): como no es una cuenta nueva, no pasa por `/registro` — eso
+crearía una segunda "Kuhane" vacía. El primer usuario se vincula una sola
+vez, a mano:
+
+1. En el Dashboard de Supabase → Authentication → Users → "Add user",
+   crear el usuario con el email y contraseña que va a usar Andre para
+   entrar. Copiar el UUID que Supabase le asigna.
+2. Correr (con el `account_id` real de Kuhane, `057a625c-9036-4b1d-957b-
+   8c436f71b4cd`, y el UUID del paso anterior):
+   ```sql
+   insert into account_members (account_id, user_id, role)
+   values ('057a625c-9036-4b1d-957b-8c436f71b4cd', '<uuid del usuario>', 'owner');
+   ```
+3. Listo — ese usuario ya puede entrar por `/login` y ve el panel de
+   Kuhane con sus datos reales, como antes.
+
+Lo que falta para que esto funcione en producción: agregar
+`NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` en Vercel (ver
+`.env.example` — son públicas a propósito, solo hablan con Supabase Auth,
+no con los datos). Sin esas dos variables, `/login` y `/registro` van a
+tirar error al cargar.
+
+Lo que queda para una fase posterior (no bloquea vender el producto, pero
+vale la pena anotarlo): la ruta pública `/reservar` todavía apunta siempre
+a la cuenta de Kuhane (`lib/current-account.ts`) — cada cliente nuevo
+necesita su propia URL o subdominio de reservas antes de poder recibir
+solicitudes de sus propios huéspedes. Es la pieza de "sitio propio por
+cliente" del plan, no algo que haya que resolver para que el panel
+administrativo funcione multi-cliente.
 
 ## ¿Un Supabase por cliente?
 

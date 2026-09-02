@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getStripeClient } from "@/lib/stripe";
+import { requireAccountFromRequest, unauthorizedResponseBody } from "@/lib/auth/require-account";
 
 // POST /api/payments/create-checkout-session
 //
@@ -36,6 +37,14 @@ function toStripeUnitAmount(appCents: number, currency: string): number {
 }
 
 export async function POST(req: Request) {
+  let accountId: string;
+  try {
+    accountId = (await requireAccountFromRequest(req)).accountId;
+  } catch (err) {
+    const { error, status } = unauthorizedResponseBody(err);
+    return NextResponse.json({ error }, { status });
+  }
+
   let body: unknown;
   try {
     body = await req.json();
@@ -43,9 +52,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
 
-  const { account_id, reservation_id, amount_cents, currency } = (body ?? {}) as Record<string, unknown>;
+  const { reservation_id, amount_cents, currency } = (body ?? {}) as Record<string, unknown>;
   if (
-    typeof account_id !== "string" ||
     typeof reservation_id !== "string" ||
     typeof amount_cents !== "number" ||
     !Number.isFinite(amount_cents) ||
@@ -54,7 +62,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error:
-          "Faltan o son inválidos los campos obligatorios: account_id (string), reservation_id (string), amount_cents (número mayor a 0).",
+          "Faltan o son inválidos los campos obligatorios: reservation_id (string), amount_cents (número mayor a 0).",
       },
       { status: 400 }
     );
@@ -67,7 +75,7 @@ export async function POST(req: Request) {
       .from("reservations")
       .select("id, check_in, check_out, guests(full_name, email), rooms(name), accounts(currency, name)")
       .eq("id", reservation_id)
-      .eq("account_id", account_id)
+      .eq("account_id", accountId)
       .single();
 
     if (resError || !reservation) {
@@ -101,7 +109,7 @@ export async function POST(req: Request) {
         },
       ],
       customer_email: guest?.email || undefined,
-      metadata: { reservation_id, account_id },
+      metadata: { reservation_id, account_id: accountId },
       success_url: `${origin}/pago-exitoso?reservation_id=${reservation_id}`,
       cancel_url: `${origin}/pago-cancelado?reservation_id=${reservation_id}`,
     });
@@ -110,14 +118,12 @@ export async function POST(req: Request) {
       .from("reservations")
       .update({ stripe_checkout_session_id: session.id, stripe_payment_link: session.url })
       .eq("id", reservation_id)
-      .eq("account_id", account_id);
+      .eq("account_id", accountId);
 
     return NextResponse.json({ url: session.url });
   } catch (err) {
     console.error("[api/payments/create-checkout-session]", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Error desconocido" },
-      { status: 500 }
-    );
+    const { error, status } = unauthorizedResponseBody(err);
+    return NextResponse.json({ error }, { status });
   }
 }

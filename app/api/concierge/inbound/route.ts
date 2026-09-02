@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { generateConciergeReply } from "@/lib/concierge";
+import { requireSessionOrSharedSecret, unauthorizedResponseBody } from "@/lib/auth/require-account";
 
 // POST /api/concierge/inbound
 //
@@ -24,6 +25,17 @@ import { generateConciergeReply } from "@/lib/concierge";
 //   guest?: { full_name?: string, email?: string, phone?: string }
 //
 // responde: { conversation_id: string, reply: string }
+//
+// Checkpoint C (Fase 1): antes cualquiera podía llamar a esta ruta con
+// cualquier account_id — sin autenticación, sin rate-limit, con costo real
+// de Anthropic por cada llamada. Ahora exige UNA de dos cosas (ver
+// lib/auth/require-account.ts):
+//   1. Una sesión real del panel (la usa el botón "Probar el Concierge IA"
+//      de Bandeja) — la cuenta de la sesión debe coincidir con account_id.
+//   2. El header x-nuku-secret con el valor de NUKU_INBOUND_SECRET — para
+//      que n8n (u otro sistema externo) pueda seguir llamando sin sesión
+//      de usuario. Hay que configurar esa variable en Vercel y agregar el
+//      header en cada workflow de n8n (ver n8n-templates/README.md).
 export async function POST(req: Request) {
   let body: unknown;
   try {
@@ -39,6 +51,13 @@ export async function POST(req: Request) {
       { error: "Faltan o son inválidos los campos obligatorios: account_id, channel, guest_message (todos string)." },
       { status: 400 }
     );
+  }
+
+  try {
+    await requireSessionOrSharedSecret(req, account_id);
+  } catch (err) {
+    const { error, status } = unauthorizedResponseBody(err);
+    return NextResponse.json({ error }, { status });
   }
 
   const guestInfo = (guest ?? {}) as { full_name?: string; email?: string; phone?: string };
@@ -76,8 +95,8 @@ export async function POST(req: Request) {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function findOrCreateGuest(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   accountId: string,
   channel: string,
@@ -115,8 +134,8 @@ async function findOrCreateGuest(
   return created.id as string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function findOrCreateConversation(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   accountId: string,
   channel: string,

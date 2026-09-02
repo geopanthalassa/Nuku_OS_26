@@ -42,3 +42,20 @@ credenciales de canal).
 En n8n, configurar una variable de entorno `NUKU_OS_BASE_URL` (Settings →
 Environment Variables si es n8n self-hosted, o Variables en n8n Cloud) con
 la URL pública del deployment de Nuku OS, ej. `https://nuku-os-app.vercel.app`.
+
+## Header obligatorio desde Checkpoint C (Fase 1) — `x-nuku-secret`
+
+`/api/concierge/inbound` y `/api/concierge/reply` ya no aceptan llamadas sin
+autenticación (antes cualquiera con el `account_id` podía llamarlas). Como
+estos workflows llaman desde n8n, sin sesión de usuario del panel, hay que
+agregar el header `x-nuku-secret` con el mismo valor que `NUKU_INBOUND_SECRET`
+tiene configurado en Nuku OS (ver `.env.example`), en cada nodo HTTP Request
+que le pegue a esas dos rutas:
+
+- En el nodo de `concierge-inbound.json` que llama a `/api/concierge/inbound`,
+  agregar en **Headers**: `x-nuku-secret` = (el valor de `NUKU_INBOUND_SECRET`,
+  se puede guardar como variable de entorno de n8n para no pegarlo en cada
+  workflow).
+- Si en el futuro se usa `/api/concierge/reply` desde n8n, mismo header.
+
+Sin este header (o con uno que no coincida), esas dos rutas devuelven `401`.

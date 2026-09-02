@@ -1,11 +1,16 @@
+"use client";
+
 import TopBar from "@/components/admin/TopBar";
 import KpiCard from "@/components/ui/KpiCard";
 import Pill from "@/components/ui/Pill";
 import { demoWorkspace } from "@/lib/mock-data";
 import { formatMoney, formatDateRange } from "@/lib/format";
+import { useCurrentAccount } from "@/lib/account-context";
 
 export default function DashboardPage() {
-  const { account, rooms, guests, reservations } = demoWorkspace;
+  const { rooms, guests, reservations } = demoWorkspace;
+  const { accountName } = useCurrentAccount();
+  const account = { ...demoWorkspace.account, name: accountName ?? demoWorkspace.account.name };
 
   const upcoming = reservations
     .filter((r) => r.status === "confirmed")

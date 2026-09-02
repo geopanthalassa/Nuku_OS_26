@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { requireAccountFromRequest, unauthorizedResponseBody } from "@/lib/auth/require-account";
 
 // POST /api/dashboard/reservation-guests
 //
@@ -11,14 +12,25 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 // formulario, así que el equipo necesita poder cargar estos datos a mano
 // una vez que confirma la reserva.
 //
+// Checkpoint C (Fase 1): el account_id se resuelve desde la sesión real,
+// no desde el body — ver lib/auth/require-account.ts.
+//
 // body: {
-//   account_id, id (reservation_guests.id),
+//   id (reservation_guests.id),
 //   dietary_vegan?, dietary_vegetarian?, dietary_celiac?, dietary_lactose_free?: boolean,
 //   dietary_other?: string,
 //   mobility_assistance?: boolean,
 //   mobility_notes?: string,
 // }
 export async function POST(req: Request) {
+  let accountId: string;
+  try {
+    accountId = (await requireAccountFromRequest(req)).accountId;
+  } catch (err) {
+    const { error, status } = unauthorizedResponseBody(err);
+    return NextResponse.json({ error }, { status });
+  }
+
   let body: unknown;
   try {
     body = await req.json();
@@ -27,7 +39,6 @@ export async function POST(req: Request) {
   }
 
   const {
-    account_id,
     id,
     dietary_vegan,
     dietary_vegetarian,
@@ -38,9 +49,9 @@ export async function POST(req: Request) {
     mobility_notes,
   } = (body ?? {}) as Record<string, unknown>;
 
-  if (typeof account_id !== "string" || typeof id !== "string") {
+  if (typeof id !== "string") {
     return NextResponse.json(
-      { error: "Faltan o son inválidos los campos obligatorios: account_id (string), id (string)." },
+      { error: "Falta o es inválido el campo obligatorio: id (string)." },
       { status: 400 }
     );
   }
@@ -64,16 +75,14 @@ export async function POST(req: Request) {
       .from("reservation_guests")
       .update(patch)
       .eq("id", id)
-      .eq("account_id", account_id); // doble filtro: nunca tocar una fila de otra cuenta
+      .eq("account_id", accountId); // doble filtro: nunca tocar una fila de otra cuenta
 
     if (error) throw new Error(error.message);
 
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[api/dashboard/reservation-guests POST]", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Error desconocido" },
-      { status: 500 }
-    );
+    const { error, status } = unauthorizedResponseBody(err);
+    return NextResponse.json({ error }, { status });
   }
 }

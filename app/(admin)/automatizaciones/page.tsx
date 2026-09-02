@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import TopBar from "@/components/admin/TopBar";
 import { demoWorkspace } from "@/lib/mock-data";
-import { CURRENT_ACCOUNT_ID } from "@/lib/current-account";
+import { useCurrentAccount } from "@/lib/account-context";
+import { authHeader } from "@/lib/supabase/auth-header";
 
 type Automation = {
   id: string;
@@ -14,22 +15,28 @@ type Automation = {
 };
 
 export default function AutomatizacionesPage() {
-  const { account } = demoWorkspace; // el nombre/branding del TopBar sigue viniendo de acá — es solo texto de UI
+  const { accountId, accountName } = useCurrentAccount();
+  const account = { ...demoWorkspace.account, name: accountName ?? demoWorkspace.account.name };
   const [automations, setAutomations] = useState<Automation[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/dashboard/automations?account_id=${CURRENT_ACCOUNT_ID}`)
-      .then((res) => res.json())
-      .then((data) => {
+    if (!accountId) return;
+    (async () => {
+      try {
+        const res = await fetch("/api/dashboard/automations", { headers: await authHeader() });
+        const data = await res.json();
         if (data.error) throw new Error(data.error);
         setAutomations(data.automations);
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : "Error desconocido"));
-  }, []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Error desconocido");
+      }
+    })();
+  }, [accountId]);
 
   async function toggle(a: Automation) {
+    if (!accountId) return;
     const nextEnabled = !a.enabled;
     setPendingId(a.id);
     setAutomations((prev) => prev!.map((x) => (x.id === a.id ? { ...x, enabled: nextEnabled } : x)));
@@ -37,8 +44,8 @@ export default function AutomatizacionesPage() {
     try {
       const res = await fetch("/api/dashboard/automations", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ account_id: CURRENT_ACCOUNT_ID, id: a.id, enabled: nextEnabled }),
+        headers: { "content-type": "application/json", ...(await authHeader()) },
+        body: JSON.stringify({ id: a.id, enabled: nextEnabled }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);

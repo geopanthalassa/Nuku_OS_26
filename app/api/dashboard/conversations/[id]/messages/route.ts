@@ -1,19 +1,18 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { requireAccountFromRequest, unauthorizedResponseBody } from "@/lib/auth/require-account";
 
-// GET /api/dashboard/conversations/:id/messages?account_id=...
-// Hilo completo de una conversación, para la pantalla Bandeja. Se exige
-// account_id y se filtra por él además del id de la conversación — así
-// nunca se puede leer el hilo de una conversación de otra cuenta aunque se
-// adivine el id.
+// GET /api/dashboard/conversations/:id/messages
+// Hilo completo de una conversación, para la pantalla Bandeja. account_id
+// se resuelve desde la sesión real (Checkpoint C, Fase 1 — ver
+// lib/auth/require-account.ts) y se filtra por él además del id de la
+// conversación — así nunca se puede leer el hilo de una conversación de
+// otra cuenta aunque se adivine el id, ni mandando un account_id ajeno.
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const accountId = new URL(req.url).searchParams.get("account_id");
-  if (!accountId) {
-    return NextResponse.json({ error: "Falta el parámetro account_id." }, { status: 400 });
-  }
 
   try {
+    const { accountId } = await requireAccountFromRequest(req);
     const supabase = getSupabaseServerClient();
 
     const { data: conversation, error: convError } = await supabase
@@ -39,9 +38,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({ messages: messages ?? [] });
   } catch (err) {
     console.error("[api/dashboard/conversations/:id/messages GET]", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Error desconocido" },
-      { status: 500 }
-    );
+    const { error, status } = unauthorizedResponseBody(err);
+    return NextResponse.json({ error }, { status });
   }
 }

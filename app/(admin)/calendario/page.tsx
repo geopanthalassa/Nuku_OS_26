@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import TopBar from "@/components/admin/TopBar";
 import Pill from "@/components/ui/Pill";
 import { demoWorkspace } from "@/lib/mock-data";
-import { CURRENT_ACCOUNT_ID } from "@/lib/current-account";
+import { useCurrentAccount } from "@/lib/account-context";
+import { authHeader } from "@/lib/supabase/auth-header";
 
 // Calendario operativo: el objetivo no es duplicar la tabla de Reservas,
 // es responder rápido "¿quién llega o se va tal día, y a qué hora hay que
@@ -93,7 +94,8 @@ function toForm(r: Reservation): FlightForm {
 }
 
 export default function CalendarioPage() {
-  const { account } = demoWorkspace;
+  const { accountId, accountName } = useCurrentAccount();
+  const account = { ...demoWorkspace.account, name: accountName ?? demoWorkspace.account.name };
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cursor, setCursor] = useState(() => {
@@ -106,17 +108,23 @@ export default function CalendarioPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  function load() {
-    fetch(`/api/dashboard/reservations?account_id=${CURRENT_ACCOUNT_ID}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.error) throw new Error(data.error);
-        setReservations(data.reservations);
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : "Error desconocido"));
+  async function load() {
+    if (!accountId) return;
+    try {
+      const res = await fetch("/api/dashboard/reservations", { headers: await authHeader() });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setReservations(data.reservations);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    }
   }
 
-  useEffect(load, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId]);
 
   // Mapa día -> { arrivals, departures } excluyendo canceladas (no hay
   // traslado que coordinar para una reserva que no va a pasar).
@@ -160,14 +168,14 @@ export default function CalendarioPage() {
   }
 
   async function saveFlight(r: Reservation) {
-    if (!form) return;
+    if (!form || !accountId) return;
     setSaving(true);
     setSaveError(null);
     try {
       const res = await fetch("/api/dashboard/reservations", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ account_id: CURRENT_ACCOUNT_ID, id: r.id, ...form }),
+        headers: { "content-type": "application/json", ...(await authHeader()) },
+        body: JSON.stringify({ id: r.id, ...form }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);

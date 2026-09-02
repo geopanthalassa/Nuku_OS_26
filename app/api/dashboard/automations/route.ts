@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { requireAccountFromRequest, unauthorizedResponseBody } from "@/lib/auth/require-account";
 
-// GET/POST /api/dashboard/automations?account_id=...
+// GET/POST /api/dashboard/automations
+//
+// Checkpoint C (Fase 1): account_id resuelto desde la sesión real, no
+// desde el query string ni el body — ver lib/auth/require-account.ts.
 //
 // Lo que usa la pantalla Automatizaciones del panel para leer y prender/
 // apagar las automatizaciones REALES de una cuenta (antes leía de
@@ -36,12 +40,8 @@ const DEFAULT_AUTOMATIONS: Array<{ template_key: string; label: string; descript
 ];
 
 export async function GET(req: Request) {
-  const accountId = new URL(req.url).searchParams.get("account_id");
-  if (!accountId) {
-    return NextResponse.json({ error: "Falta el parámetro account_id." }, { status: 400 });
-  }
-
   try {
+    const { accountId } = await requireAccountFromRequest(req);
     const supabase = getSupabaseServerClient();
 
     const { data: existing, error } = await supabase
@@ -68,14 +68,20 @@ export async function GET(req: Request) {
     return NextResponse.json({ automations: (seeded ?? []).map(withLabel) });
   } catch (err) {
     console.error("[api/dashboard/automations GET]", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Error desconocido" },
-      { status: 500 }
-    );
+    const { error, status } = unauthorizedResponseBody(err);
+    return NextResponse.json({ error }, { status });
   }
 }
 
 export async function POST(req: Request) {
+  let accountId: string;
+  try {
+    accountId = (await requireAccountFromRequest(req)).accountId;
+  } catch (err) {
+    const { error, status } = unauthorizedResponseBody(err);
+    return NextResponse.json({ error }, { status });
+  }
+
   let body: unknown;
   try {
     body = await req.json();
@@ -83,10 +89,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
 
-  const { account_id, id, enabled } = (body ?? {}) as Record<string, unknown>;
-  if (typeof account_id !== "string" || typeof id !== "string" || typeof enabled !== "boolean") {
+  const { id, enabled } = (body ?? {}) as Record<string, unknown>;
+  if (typeof id !== "string" || typeof enabled !== "boolean") {
     return NextResponse.json(
-      { error: "Faltan o son inválidos los campos obligatorios: account_id (string), id (string), enabled (boolean)." },
+      { error: "Faltan o son inválidos los campos obligatorios: id (string), enabled (boolean)." },
       { status: 400 }
     );
   }
@@ -97,16 +103,14 @@ export async function POST(req: Request) {
       .from("automations")
       .update({ enabled })
       .eq("id", id)
-      .eq("account_id", account_id); // doble filtro: nunca tocar una fila de otra cuenta
+      .eq("account_id", accountId); // doble filtro: nunca tocar una fila de otra cuenta
 
     if (error) throw new Error(error.message);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[api/dashboard/automations POST]", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Error desconocido" },
-      { status: 500 }
-    );
+    const { error, status } = unauthorizedResponseBody(err);
+    return NextResponse.json({ error }, { status });
   }
 }
 

@@ -3,7 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { clearSession } from "@/lib/admin-auth";
+import { logout } from "@/lib/admin-auth";
+import { useCurrentAccount } from "@/lib/account-context";
 
 const NAV = [
   { href: "/dashboard", label: "Resumen" },
@@ -18,9 +19,10 @@ const NAV = [
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { accountName, email } = useCurrentAccount();
 
-  function handleLogout() {
-    clearSession();
+  async function handleLogout() {
+    await logout();
     router.push("/login");
   }
 
@@ -54,8 +56,11 @@ export default function Sidebar() {
         })}
       </nav>
       <div className="border-t border-line p-4">
-        <p className="text-[11px] leading-relaxed text-ink-faint">
-          Fase 0 — datos de ejemplo. Sin conexión a Supabase todavía.
+        <p className="truncate text-[11px] font-medium text-ink-soft" title={accountName ?? undefined}>
+          {accountName ?? "—"}
+        </p>
+        <p className="truncate text-[11px] text-ink-faint" title={email ?? undefined}>
+          {email ?? ""}
         </p>
         <button
           type="button"

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { renderAutomationMessage } from "@/lib/automations";
+import { requireAccountFromRequest, unauthorizedResponseBody } from "@/lib/auth/require-account";
 
-// GET/POST /api/dashboard/reservations?account_id=...
+// GET/POST /api/dashboard/reservations
 //
 // Lo que usa la pantalla Reservas del panel — antes mostraba datos de
 // ejemplo (lib/mock-data.ts), ahora lee/escribe la tabla `reservations`
@@ -12,14 +13,15 @@ import { renderAutomationMessage } from "@/lib/automations";
 // bienvenida con el mismo motor que usará n8n más adelante — así, aunque
 // todavía no hay un envío automático conectado, el equipo ya tiene el
 // mensaje listo para copiar y mandar a mano mientras tanto.
+//
+// Checkpoint C (Fase 1): el account_id ya NO se toma del query string ni
+// del body — se resuelve siempre desde la sesión real (ver
+// lib/auth/require-account.ts), para que nadie pueda leer/escribir
+// reservas de otra cuenta mandando un account_id ajeno.
 
 export async function GET(req: Request) {
-  const accountId = new URL(req.url).searchParams.get("account_id");
-  if (!accountId) {
-    return NextResponse.json({ error: "Falta el parámetro account_id." }, { status: 400 });
-  }
-
   try {
+    const { accountId } = await requireAccountFromRequest(req);
     const supabase = getSupabaseServerClient();
 
     const { data, error } = await supabase
@@ -37,16 +39,22 @@ export async function GET(req: Request) {
     return NextResponse.json({ reservations: data ?? [], currency: account?.currency ?? "CLP" });
   } catch (err) {
     console.error("[api/dashboard/reservations GET]", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Error desconocido" },
-      { status: 500 }
-    );
+    const { error, status } = unauthorizedResponseBody(err);
+    return NextResponse.json({ error }, { status });
   }
 }
 
 const VALID_STATUSES = ["requested", "confirmed", "cancelled", "completed"];
 
 export async function POST(req: Request) {
+  let accountId: string;
+  try {
+    accountId = (await requireAccountFromRequest(req)).accountId;
+  } catch (err) {
+    const { error, status } = unauthorizedResponseBody(err);
+    return NextResponse.json({ error }, { status });
+  }
+
   let body: unknown;
   try {
     body = await req.json();
@@ -55,7 +63,6 @@ export async function POST(req: Request) {
   }
 
   const {
-    account_id,
     id,
     status,
     arrival_flight_time,
@@ -64,9 +71,9 @@ export async function POST(req: Request) {
     departure_flight_number,
     airport_transfer_notes,
   } = (body ?? {}) as Record<string, unknown>;
-  if (typeof account_id !== "string" || typeof id !== "string") {
+  if (typeof id !== "string") {
     return NextResponse.json(
-      { error: "Faltan o son inválidos los campos obligatorios: account_id (string), id (string)." },
+      { error: "Falta o es inválido el campo obligatorio: id (string)." },
       { status: 400 }
     );
   }
@@ -111,7 +118,7 @@ export async function POST(req: Request) {
       .from("reservations")
       .update(updatePayload)
       .eq("id", id)
-      .eq("account_id", account_id); // doble filtro: nunca tocar una fila de otra cuenta
+      .eq("account_id", accountId); // doble filtro: nunca tocar una fila de otra cuenta
 
     if (error) throw new Error(error.message);
 
@@ -124,7 +131,7 @@ export async function POST(req: Request) {
     if (status === "confirmed") {
       try {
         const rendered = await renderAutomationMessage({
-          accountId: account_id,
+          accountId,
           templateKey: "bienvenida_reserva",
           reservationId: id,
         });
@@ -137,9 +144,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, welcome_message: welcomeMessage });
   } catch (err) {
     console.error("[api/dashboard/reservations POST]", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Error desconocido" },
-      { status: 500 }
-    );
+    const { error, status: statusCode } = unauthorizedResponseBody(err);
+    return NextResponse.json({ error }, { status: statusCode });
   }
 }

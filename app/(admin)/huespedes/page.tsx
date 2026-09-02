@@ -1,6 +1,9 @@
+"use client";
+
 import TopBar from "@/components/admin/TopBar";
 import Pill from "@/components/ui/Pill";
 import { demoWorkspace } from "@/lib/mock-data";
+import { useCurrentAccount } from "@/lib/account-context";
 
 const SOURCE_LABEL: Record<string, string> = {
   direct: "Directo",
@@ -10,7 +13,9 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 export default function HuespedesPage() {
-  const { account, guests, reservations } = demoWorkspace;
+  const { guests, reservations } = demoWorkspace;
+  const { accountName } = useCurrentAccount();
+  const account = { ...demoWorkspace.account, name: accountName ?? demoWorkspace.account.name };
 
   const stayCount = (guestId: string) =>
     reservations.filter((r) => r.guestId === guestId).length;

@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { requireAccountFromRequest, unauthorizedResponseBody } from "@/lib/auth/require-account";
 
-// GET /api/dashboard/conversations?account_id=...
+// GET /api/dashboard/conversations
 // Lista de conversaciones reales de una cuenta para la pantalla Bandeja,
 // con el nombre del huésped y el último mensaje ya resueltos (para no
 // tener que hacer N llamadas extra desde el cliente).
+//
+// Checkpoint C (Fase 1): account_id resuelto desde la sesión real, no
+// desde el query string — ver lib/auth/require-account.ts.
 export async function GET(req: Request) {
-  const accountId = new URL(req.url).searchParams.get("account_id");
-  if (!accountId) {
-    return NextResponse.json({ error: "Falta el parámetro account_id." }, { status: 400 });
-  }
-
   try {
+    const { accountId } = await requireAccountFromRequest(req);
     const supabase = getSupabaseServerClient();
 
     const { data: conversations, error } = await supabase
@@ -49,9 +49,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ conversations: result });
   } catch (err) {
     console.error("[api/dashboard/conversations GET]", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Error desconocido" },
-      { status: 500 }
-    );
+    const { error, status } = unauthorizedResponseBody(err);
+    return NextResponse.json({ error }, { status });
   }
 }
