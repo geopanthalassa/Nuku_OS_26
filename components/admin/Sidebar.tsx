@@ -14,6 +14,7 @@ const NAV = [
   { href: "/huespedes", label: "Huéspedes" },
   { href: "/bandeja", label: "Bandeja" },
   { href: "/automatizaciones", label: "Automatizaciones" },
+  { href: "/cupones", label: "Cupones" },
 ];
 
 export default function Sidebar() {

@@ -58,6 +58,53 @@ function one<T>(rel: T | T[] | null): T | null {
   return Array.isArray(rel) ? rel[0] ?? null : rel;
 }
 
+type PromoCodeLite = {
+  code: string;
+  discount_type: "percent" | "fixed_amount";
+  discount_value: number;
+  active: boolean;
+};
+
+// Calcula el monto sugerido para el botón "Cobrar": noches × tarifa de la
+// habitación, con el descuento del cupón ya aplicado si la reserva trae uno
+// válido. Pedido de Andre (7/9/2026): "necesito que el descuento sea
+// automatico para la persona" — el staff ya no tiene que calcularlo a mano,
+// pero el monto sigue siendo editable por si hace falta un ajuste.
+// Devuelve null si no hay tarifa cargada para la habitación (no inventamos
+// un precio) — en ese caso el campo sigue en blanco, como antes.
+function computeSuggestedAmount(
+  r: Reservation,
+  promoCodes: PromoCodeLite[] | null
+): { pesos: number; breakdown: string } | null {
+  const room = one(r.rooms);
+  if (!room || room.base_rate_cents == null) return null;
+
+  const n = nights(r.check_in, r.check_out);
+  if (n <= 0) return null;
+
+  const subtotalPesos = (room.base_rate_cents / 100) * n;
+  const nightsLabel = `${n} ${n === 1 ? "noche" : "noches"} × ${formatMoney(room.base_rate_cents)}`;
+
+  const promo = r.promo_code
+    ? promoCodes?.find((p) => p.code === r.promo_code && p.active)
+    : undefined;
+
+  if (!promo) {
+    return { pesos: Math.round(subtotalPesos), breakdown: nightsLabel };
+  }
+
+  const discountPesos =
+    promo.discount_type === "percent" ? subtotalPesos * (promo.discount_value / 100) : promo.discount_value;
+  const finalPesos = Math.max(0, Math.round(subtotalPesos - discountPesos));
+  const discountLabel =
+    promo.discount_type === "percent" ? `${promo.discount_value}%` : formatMoney(promo.discount_value * 100);
+
+  return {
+    pesos: finalPesos,
+    breakdown: `${nightsLabel} − ${discountLabel} (${promo.code}) = ${formatMoney(finalPesos * 100)}`,
+  };
+}
+
 export default function ReservasPage() {
   const { accountId, accountName } = useCurrentAccount();
   const account = { ...demoWorkspace.account, name: accountName ?? demoWorkspace.account.name };
@@ -73,6 +120,8 @@ export default function ReservasPage() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [promoCodes, setPromoCodes] = useState<PromoCodeLite[] | null>(null);
+  const [amountBreakdown, setAmountBreakdown] = useState<string | null>(null);
 
   async function load() {
     if (!accountId) return;
@@ -87,9 +136,25 @@ export default function ReservasPage() {
     }
   }
 
+  async function loadPromoCodes() {
+    if (!accountId) return;
+    try {
+      const res = await fetch("/api/dashboard/promo-codes", { headers: await authHeader() });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setPromoCodes(data.promoCodes);
+    } catch {
+      // Si esto falla, el cálculo automático simplemente no aplica ningún
+      // descuento (queda el subtotal sin cupón) -- no bloquea "Cobrar".
+      setPromoCodes([]);
+    }
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadPromoCodes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId]);
 
@@ -152,6 +217,7 @@ export default function ReservasPage() {
       setCopiedLink(false);
       setPayingId(null);
       setAmountInput("");
+      setAmountBreakdown(null);
       setReservations((prev) => prev!.map((x) => (x.id === r.id ? { ...x, stripe_payment_link: data.url } : x)));
     } catch (err) {
       setPaymentError(err instanceof Error ? err.message : "No se pudo generar el link de pago.");
@@ -336,7 +402,9 @@ export default function ReservasPage() {
                                   disabled={pendingId === r.id}
                                   onClick={() => {
                                     setPayingId(r.id);
-                                    setAmountInput("");
+                                    const suggestion = computeSuggestedAmount(r, promoCodes);
+                                    setAmountInput(suggestion ? String(suggestion.pesos) : "");
+                                    setAmountBreakdown(suggestion?.breakdown ?? null);
                                     setPaymentError(null);
                                   }}
                                   className="rounded-lg border border-terracotta/40 px-3 py-1.5 text-xs font-medium text-terracotta transition-colors hover:bg-terracotta/10 disabled:opacity-50"
@@ -384,12 +452,25 @@ export default function ReservasPage() {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setPayingId(null)}
+                                  onClick={() => {
+                                    setPayingId(null);
+                                    setAmountBreakdown(null);
+                                  }}
                                   className="text-xs text-ink-faint hover:text-ink"
                                 >
                                   Cancelar
                                 </button>
                               </div>
+                              {amountBreakdown && (
+                                <p className="text-[11px] text-ink-faint">
+                                  {amountBreakdown} — calculado solo, podés editarlo arriba.
+                                </p>
+                              )}
+                              {!amountBreakdown && (
+                                <p className="text-[11px] text-ink-faint">
+                                  Esta habitación todavía no tiene tarifa cargada — ingresá el monto a mano.
+                                </p>
+                              )}
                               {paymentError && <p className="text-[11px] text-rust">{paymentError}</p>}
                             </div>
                           )}
