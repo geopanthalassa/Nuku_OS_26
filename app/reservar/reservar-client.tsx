@@ -44,9 +44,11 @@ const EMPTY_GUEST: GuestForm = {
 };
 
 // Página pública de disponibilidad — a la que apunta el panel "Reservar" de
-// kuhane-web. Fase 0: sin pagos automáticos todavía, pero la solicitud ya
-// queda guardada de verdad en Supabase (antes se perdía en el aire) para
-// que el equipo la confirme por WhatsApp/email.
+// kuhane-web. La reserva y el correo de confirmación son reales y quedan
+// guardados de verdad en Supabase apenas se envía el formulario — no es
+// una fase de pruebas (confirmado por Andre, 22/9/2026). El pago nunca se
+// procesa online: se hace directo en el hostal, así que no hay cobro
+// automático que agregar aquí.
 //
 // El hostal se hace responsable de declarar a todas las personas que
 // ingresan a Rapa Nui en esta reserva, así que el formulario pide los
@@ -82,6 +84,10 @@ export default function ReservarClient() {
     const n = nights(checkin, checkout);
     return n > 0 ? n : null;
   }, [checkin, checkout]);
+
+  // Estadía mínima de 2 noches — pedido de Andre (22/9/2026).
+  const MIN_NIGHTS = 2;
+  const stayTooShort = nightCount !== null && nightCount < MIN_NIGHTS;
 
   useEffect(() => {
     fetch(`/api/public/rooms?account_id=${CURRENT_ACCOUNT_ID}`)
@@ -126,7 +132,7 @@ export default function ReservarClient() {
     companions.some((c) => !c.full_name.trim() || !c.document_id.trim());
 
   async function submitRequest() {
-    if (!selectedRoomId || !checkin || !checkout || missingRequired) return;
+    if (!selectedRoomId || !checkin || !checkout || missingRequired || stayTooShort) return;
     setSending(true);
     setError(null);
 
@@ -307,15 +313,11 @@ export default function ReservarClient() {
           <span className="text-olive">◈</span> Nuku OS — {demoWorkspace.account.name}
         </div>
 
-        <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-olive-soft px-3 py-1 font-mono-ui text-[11px] uppercase tracking-widest text-olive">
-          Modo demo — Fase 0
-        </div>
-
         <h1 className="font-display mt-5 text-3xl text-ink sm:text-4xl">Disponibilidad</h1>
         <p className="mt-3 max-w-xl text-sm leading-relaxed text-ink-soft">
-          Este sistema de reservas está en fase de pruebas: todavía no procesa pagos ni
-          confirma automáticamente. Elige una habitación, déjanos tus datos y te contactamos
-          por WhatsApp o email para confirmar la reserva.
+          Tu reserva queda registrada al instante y te enviamos la confirmación por correo.
+          El pago se hace directo en el hostal — efectivo, débito o crédito (nacional o
+          extranjera). Escríbenos por WhatsApp o email si necesitas coordinar tu llegada.
         </p>
 
         <div
@@ -337,6 +339,11 @@ export default function ReservarClient() {
               {guests} {guests === 1 ? "persona" : "personas"}
               {nightCount ? ` · ${nightCount} ${nightCount === 1 ? "noche" : "noches"}` : ""}
             </p>
+            {stayTooShort && (
+              <p className="mt-1 text-[11px] text-terracotta">
+                La estadía mínima es de {MIN_NIGHTS} noches. Elige otras fechas.
+              </p>
+            )}
           </div>
           {promo && (
             <div>
@@ -481,7 +488,7 @@ export default function ReservarClient() {
 
             <button
               onClick={submitRequest}
-              disabled={sending || missingRequired}
+              disabled={sending || missingRequired || stayTooShort}
               className="w-full rounded-lg bg-terracotta px-5 py-2.5 text-sm font-medium text-paper transition-opacity hover:opacity-90 disabled:opacity-50 sm:w-auto"
             >
               {sending ? "Enviando…" : "Solicitar esta habitación"}
@@ -491,14 +498,19 @@ export default function ReservarClient() {
                 Falta nombre y/o identificación de alguna persona de la reserva.
               </p>
             )}
+            {stayTooShort && (
+              <p className="text-[11px] text-ink-faint">
+                La estadía mínima es de {MIN_NIGHTS} noches — ajusta las fechas arriba para continuar.
+              </p>
+            )}
           </div>
         )}
 
         {sent && (
           <div className="mt-8 rounded-xl border border-sage bg-sage-soft p-5 text-sm text-ink">
-            Recibimos tu solicitud. Como el sistema todavía está en fase de pruebas, el
-            equipo de Kuhane te va a escribir por WhatsApp o email para confirmar
-            disponibilidad y forma de pago — no se ha realizado ningún cobro.
+            ¡Reserva registrada! Te enviamos la confirmación a tu correo. El pago se hace
+            directo en el hostal — no se ha realizado ningún cobro online. Si necesitas
+            coordinar algo antes de tu llegada, escríbenos por WhatsApp o email.
           </div>
         )}
       </div>
