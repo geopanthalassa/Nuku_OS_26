@@ -25,6 +25,42 @@ import PasswordInput from "@/components/ui/PasswordInput";
 // apuntar a la URL real de producción — ver la nota que le mandé a Andre.
 type Mode = "login" | "forgot" | "recovery";
 
+// Supabase Auth devuelve sus mensajes de error en inglés (resetError.message,
+// updateError.message) — acá los traducimos para no mostrarle nunca texto en
+// inglés al usuario. Si el mensaje no está mapeado, cae en un genérico en
+// español en vez de mostrar el texto crudo de Supabase.
+function translateAuthError(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes("error sending recovery email")) {
+    return "No pudimos enviar el correo de recuperación (problema del servidor de correo). Intenta de nuevo en unos minutos, o contáctanos si sigue fallando.";
+  }
+  if (m.includes("you can only request this after")) {
+    return "Por seguridad hay que esperar un momento antes de volver a solicitarlo. Intenta de nuevo en unos minutos.";
+  }
+  if (m.includes("rate limit")) {
+    return "Se hicieron demasiados intentos seguidos. Espera unos minutos y vuelve a intentar.";
+  }
+  if (m.includes("invalid login credentials")) {
+    return "Email o contraseña incorrectos.";
+  }
+  if (m.includes("invalid or has expired")) {
+    return "El link ya no es válido o venció. Solicita uno nuevo.";
+  }
+  if (m.includes("should be different from the old password")) {
+    return "La contraseña nueva debe ser distinta a la anterior.";
+  }
+  if (m.includes("at least 6 characters") || m.includes("at least 8 characters")) {
+    return "La contraseña debe tener al menos 8 caracteres.";
+  }
+  if (m.includes("invalid format")) {
+    return "Ese email no tiene un formato válido.";
+  }
+  if (m.includes("user not found")) {
+    return "No encontramos una cuenta con ese email.";
+  }
+  return "Ocurrió un error inesperado. Intenta de nuevo en unos minutos.";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("login");
@@ -86,7 +122,7 @@ export default function LoginPage() {
 
     setForgotLoading(false);
     if (resetError) {
-      setForgotError(resetError.message);
+      setForgotError(translateAuthError(resetError.message));
       return;
     }
     setForgotSent(true);
@@ -111,7 +147,7 @@ export default function LoginPage() {
     setRecoveryLoading(false);
 
     if (updateError) {
-      setRecoveryError(updateError.message);
+      setRecoveryError(translateAuthError(updateError.message));
       return;
     }
     router.push("/dashboard");
