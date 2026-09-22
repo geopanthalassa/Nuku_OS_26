@@ -1,10 +1,22 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
-// Registro self-serve de un cliente NUEVO de Nuku OS: crea su usuario de
-// Supabase Auth, su fila en `accounts`, y lo vincula como owner en
+// Registro de un cliente NUEVO de Nuku OS: crea su usuario de Supabase
+// Auth, su fila en `accounts`, y lo vincula como owner en
 // `account_members` — las tres cosas que ONBOARDING.md describía como
-// "hay que cargarlas a mano". Ahora las carga el propio cliente.
+// "hay que cargarlas a mano". Ahora las carga el propio cliente... pero
+// SOLO si su email fue habilitado antes por Nuku OS.
+//
+// Pedido de Andre (22/9/2026): esta pantalla es pública, así que hoy
+// cualquiera que la encuentre puede crearse una cuenta de prueba. Mientras
+// no exista una venta/onboarding automatizado y pago, el registro queda
+// cerrado por invitación: el email tiene que existir en
+// `signup_invites` (tabla nueva, sin acceso desde el cliente) o el
+// registro se rechaza acá mismo, antes de tocar Supabase Auth. Para
+// habilitar un email nuevo hoy hace falta cargarlo a mano en esa tabla
+// (por SQL o por Nuku OS); más adelante esto puede reemplazarse por una
+// pantalla de administración o por un flujo de pago que inserte la fila
+// automáticamente.
 //
 // Importante: esta ruta es para cuentas NUEVAS. La cuenta de Kuhane (la
 // piloto, con datos reales ya cargados) no pasa por acá — su primer
@@ -40,6 +52,24 @@ export async function POST(req: Request) {
   }
 
   const supabase = getSupabaseServerClient();
+
+  const { data: invite, error: inviteError } = await supabase
+    .from("signup_invites")
+    .select("id, used_at")
+    .eq("email", email)
+    .maybeSingle();
+  if (inviteError) {
+    return NextResponse.json({ error: "No se pudo verificar el acceso. Intenta de nuevo." }, { status: 500 });
+  }
+  if (!invite) {
+    return NextResponse.json(
+      {
+        error:
+          "Este email todavía no está habilitado para crear una cuenta en Nuku OS. Escríbenos para que te habilitemos el acceso.",
+      },
+      { status: 403 }
+    );
+  }
 
   const { data: created, error: createUserError } = await supabase.auth.admin.createUser({
     email,
@@ -84,6 +114,11 @@ export async function POST(req: Request) {
       .from("concierge_settings")
       .insert({ account_id: account.id, business_facts: {} });
     if (settingsError) throw new Error(settingsError.message);
+
+    // No bloqueamos la respuesta por esto: si falla, el email sigue
+    // habilitado en signup_invites pero ya no importa porque auth.users
+    // no permite un segundo usuario con el mismo email de todas formas.
+    await supabase.from("signup_invites").update({ used_at: new Date().toISOString() }).eq("id", invite.id);
 
     return NextResponse.json({ ok: true, account_id: account.id });
   } catch (err) {

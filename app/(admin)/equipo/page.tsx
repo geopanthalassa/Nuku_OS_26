@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import TopBar from "@/components/admin/TopBar";
 import Pill from "@/components/ui/Pill";
+import PasswordInput from "@/components/ui/PasswordInput";
 import { demoWorkspace } from "@/lib/mock-data";
 import { useCurrentAccount } from "@/lib/account-context";
 import { authHeader } from "@/lib/supabase/auth-header";
@@ -134,13 +135,15 @@ export default function EquipoPage() {
               </label>
               <label className="text-xs text-ink-soft">
                 Contraseña
-                <input
-                  type="password"
-                  value={form.password}
-                  onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                  placeholder="Mínimo 8 caracteres"
-                  className="mt-1 w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-terracotta"
-                />
+                <div className="mt-1">
+                  <PasswordInput
+                    id="team-password"
+                    value={form.password}
+                    onChange={(value) => setForm((f) => ({ ...f, password: value }))}
+                    placeholder="Mínimo 8 caracteres"
+                    className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-terracotta"
+                  />
+                </div>
               </label>
               <label className="text-xs text-ink-soft">
                 Rol

@@ -5,11 +5,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import PasswordInput from "@/components/ui/PasswordInput";
 
-// Registro self-serve — Fase 1. Cualquier alojamiento nuevo crea su
-// cuenta acá mismo, sin que nadie de Nuku OS tenga que cargarla a mano:
-// esta pantalla llama a /api/auth/signup (crea el usuario, la cuenta y el
-// vínculo entre ambos) y después abre sesión directo.
+// Registro — Fase 1. Esta pantalla llama a /api/auth/signup (crea el
+// usuario, la cuenta y el vínculo entre ambos) y después abre sesión
+// directo. Desde el 22/9/2026 el registro es por invitación: el email
+// tiene que estar habilitado de antemano en `signup_invites` o
+// /api/auth/signup lo rechaza — ver el comentario en esa ruta. La
+// pantalla no lo valida antes de enviar porque el rechazo con su mensaje
+// ya viene del servidor.
 export default function RegistroPage() {
   const router = useRouter();
   const [hostalName, setHostalName] = useState("");
@@ -124,11 +128,10 @@ export default function RegistroPage() {
               <label className="mb-1.5 block text-xs font-medium text-ink-soft" htmlFor="password">
                 Contraseña
               </label>
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={setPassword}
                 placeholder="Mínimo 8 caracteres"
                 autoComplete="new-password"
                 required
