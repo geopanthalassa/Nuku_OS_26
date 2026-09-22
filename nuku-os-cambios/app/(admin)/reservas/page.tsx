@@ -22,19 +22,6 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "Cancelada",
 };
 
-// Canales que puede elegir el equipo al cargar una reserva a mano —
-// tienen que coincidir con MANUAL_CHANNELS en app/api/dashboard/reservations/route.ts.
-// "direct" no está acá a propósito: esa la crea sola /api/reservations/request
-// cuando alguien reserva por la página pública.
-const MANUAL_CHANNEL_LABELS: Record<string, string> = {
-  phone: "Teléfono",
-  whatsapp: "WhatsApp",
-  booking: "Booking.com",
-  airbnb: "Airbnb",
-  walk_in: "Llegó directo (walk-in)",
-  other: "Otro",
-};
-
 type Reservation = {
   id: string;
   check_in: string;
@@ -66,8 +53,6 @@ type Reservation = {
   stripe_payment_link?: string | null;
 };
 
-type RoomOption = { id: string; name: string; capacity: number; base_rate_cents: number | null };
-
 function one<T>(rel: T | T[] | null): T | null {
   if (!rel) return null;
   return Array.isArray(rel) ? rel[0] ?? null : rel;
@@ -82,8 +67,8 @@ type PromoCodeLite = {
 
 // Calcula el monto sugerido para el botón "Cobrar": noches × tarifa de la
 // habitación, con el descuento del cupón ya aplicado si la reserva trae uno
-// válido. Pedido de Andre (22/9/2026): antes se ponía el cupón y el
-// descuento se calculaba a mano — ahora el staff ya no tiene que calcularlo,
+// válido. Pedido de Andre (7/9/2026): "necesito que el descuento sea
+// automatico para la persona" — el staff ya no tiene que calcularlo a mano,
 // pero el monto sigue siendo editable por si hace falta un ajuste.
 // Devuelve null si no hay tarifa cargada para la habitación (no inventamos
 // un precio) — en ese caso el campo sigue en blanco, como antes.
@@ -120,23 +105,6 @@ function computeSuggestedAmount(
   };
 }
 
-const EMPTY_CREATE_FORM = {
-  room_id: "",
-  check_in: "",
-  check_out: "",
-  channel: "phone",
-  status: "confirmed",
-  full_name: "",
-  email: "",
-  phone: "",
-  document_id: "",
-  birth_date: "",
-  total_cents: "",
-  promo_code: "",
-  tour_interest: false,
-  tour_notes: "",
-};
-
 export default function ReservasPage() {
   const { accountId, accountName } = useCurrentAccount();
   const account = { ...demoWorkspace.account, name: accountName ?? demoWorkspace.account.name };
@@ -155,17 +123,6 @@ export default function ReservasPage() {
   const [promoCodes, setPromoCodes] = useState<PromoCodeLite[] | null>(null);
   const [amountBreakdown, setAmountBreakdown] = useState<string | null>(null);
 
-  // Reserva manual — hasta ahora la única forma de que una reserva quedara
-  // guardada en Nuku OS era que el huésped la pidiera él mismo en /reservar.
-  // Una llamada, un WhatsApp, o una reserva por Booking/Airbnb no quedaban
-  // registradas en ningún lado. Este formulario llama al mismo POST
-  // /api/dashboard/reservations, sin "id", que ahora también sabe crear.
-  const [showCreate, setShowCreate] = useState(false);
-  const [rooms, setRooms] = useState<RoomOption[] | null>(null);
-  const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-
   async function load() {
     if (!accountId) return;
     try {
@@ -176,20 +133,6 @@ export default function ReservasPage() {
       setCurrency(data.currency);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
-    }
-  }
-
-  async function loadRooms() {
-    if (!accountId) return;
-    try {
-      const res = await fetch(`/api/public/rooms?account_id=${accountId}`);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setRooms(data.rooms);
-    } catch {
-      // Si esto falla, el selector de habitación queda vacío y se ve el
-      // aviso de abajo — no bloquea el resto del panel.
-      setRooms([]);
     }
   }
 
@@ -210,7 +153,7 @@ export default function ReservasPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
-    loadRooms();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadPromoCodes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId]);
@@ -293,301 +236,18 @@ export default function ReservasPage() {
     }
   }
 
-  async function submitCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!accountId) return;
-
-    if (!createForm.room_id || !createForm.check_in || !createForm.check_out || !createForm.full_name.trim()) {
-      setCreateError("Falta habitación, fechas o nombre del huésped.");
-      return;
-    }
-
-    let totalCents: number | null = null;
-    if (createForm.total_cents.trim()) {
-      const pesos = Number(createForm.total_cents.replace(/[^0-9.]/g, ""));
-      if (!Number.isFinite(pesos) || pesos < 0) {
-        setCreateError("El monto ingresado no es válido.");
-        return;
-      }
-      totalCents = Math.round(pesos * 100);
-    }
-
-    setCreating(true);
-    setCreateError(null);
-    try {
-      const res = await fetch("/api/dashboard/reservations", {
-        method: "POST",
-        headers: { "content-type": "application/json", ...(await authHeader()) },
-        body: JSON.stringify({
-          room_id: createForm.room_id,
-          check_in: createForm.check_in,
-          check_out: createForm.check_out,
-          channel: createForm.channel,
-          status: createForm.status,
-          total_cents: totalCents,
-          promo_code: createForm.promo_code || undefined,
-          tour_interest: createForm.tour_interest,
-          tour_notes: createForm.tour_notes || undefined,
-          guest: {
-            full_name: createForm.full_name.trim(),
-            email: createForm.email || undefined,
-            phone: createForm.phone || undefined,
-            document_id: createForm.document_id || undefined,
-            birth_date: createForm.birth_date || undefined,
-          },
-        }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-
-      setShowCreate(false);
-      const wasConfirmed = createForm.status === "confirmed";
-      setCreateForm(EMPTY_CREATE_FORM);
-      await load();
-      if (wasConfirmed && data.welcome_message) {
-        setWelcomeFor({ id: data.reservation_id, message: data.welcome_message });
-        setCopied(false);
-      }
-    } catch (err) {
-      setCreateError(err instanceof Error ? err.message : "No se pudo crear la reserva.");
-    } finally {
-      setCreating(false);
-    }
-  }
-
   return (
     <>
       <TopBar account={account} title="Reservas" />
       <main className="flex-1 space-y-5 p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <p className="max-w-2xl text-sm text-ink-soft">
-            Esta lista ya es real: las solicitudes que llegan desde la página
-            pública de reservas quedan guardadas acá con estado{" "}
-            <span className="font-medium text-ink">Por confirmar</span>. Al
-            confirmarlas, se arma el mensaje de bienvenida para copiar y
-            mandar por WhatsApp o email mientras el envío automático todavía
-            no está conectado (ver n8n-templates/README.md).
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setShowCreate((v) => !v);
-              setCreateError(null);
-            }}
-            className="shrink-0 rounded-lg bg-terracotta px-4 py-2 text-xs font-medium text-paper transition-opacity hover:opacity-90"
-          >
-            {showCreate ? "Cerrar" : "+ Nueva reserva"}
-          </button>
-        </div>
-
-        {showCreate && (
-          <form
-            onSubmit={submitCreate}
-            className="max-w-2xl space-y-4 rounded-xl border border-line bg-surface p-4"
-          >
-            <div>
-              <p className="font-mono-ui text-[11px] uppercase tracking-widest text-ink-faint">
-                Reserva manual
-              </p>
-              <p className="mt-1 text-xs text-ink-faint">
-                Para reservas que llegaron por teléfono, WhatsApp, Booking,
-                Airbnb o directo en recepción — no pasaron por /reservar, así
-                que no quedaban guardadas hasta ahora.
-              </p>
-            </div>
-
-            {rooms !== null && rooms.length === 0 && (
-              <p className="rounded-lg border border-rust/30 bg-rust-soft px-3 py-2 text-xs text-rust">
-                No hay habitaciones cargadas para esta cuenta todavía.
-              </p>
-            )}
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="flex flex-col gap-1 text-xs text-ink-soft">
-                Habitación
-                <select
-                  required
-                  value={createForm.room_id}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, room_id: e.target.value }))}
-                  className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
-                >
-                  <option value="">Elige una habitación…</option>
-                  {(rooms ?? []).map((room) => (
-                    <option key={room.id} value={room.id}>
-                      {room.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="flex flex-col gap-1 text-xs text-ink-soft">
-                Canal
-                <select
-                  value={createForm.channel}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, channel: e.target.value }))}
-                  className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
-                >
-                  {Object.entries(MANUAL_CHANNEL_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="flex flex-col gap-1 text-xs text-ink-soft">
-                Check-in
-                <input
-                  required
-                  type="date"
-                  value={createForm.check_in}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, check_in: e.target.value }))}
-                  className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
-                />
-              </label>
-
-              <label className="flex flex-col gap-1 text-xs text-ink-soft">
-                Check-out
-                <input
-                  required
-                  type="date"
-                  value={createForm.check_out}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, check_out: e.target.value }))}
-                  className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
-                />
-              </label>
-
-              <label className="flex flex-col gap-1 text-xs text-ink-soft sm:col-span-2">
-                Nombre del huésped
-                <input
-                  required
-                  type="text"
-                  value={createForm.full_name}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, full_name: e.target.value }))}
-                  className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
-                />
-              </label>
-
-              <label className="flex flex-col gap-1 text-xs text-ink-soft">
-                Email (opcional)
-                <input
-                  type="email"
-                  value={createForm.email}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
-                  className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
-                />
-              </label>
-
-              <label className="flex flex-col gap-1 text-xs text-ink-soft">
-                Teléfono (opcional)
-                <input
-                  type="tel"
-                  value={createForm.phone}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, phone: e.target.value }))}
-                  className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
-                />
-              </label>
-
-              <label className="flex flex-col gap-1 text-xs text-ink-soft">
-                RUT / pasaporte (opcional)
-                <input
-                  type="text"
-                  value={createForm.document_id}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, document_id: e.target.value }))}
-                  className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
-                />
-              </label>
-
-              <label className="flex flex-col gap-1 text-xs text-ink-soft">
-                Fecha de nacimiento (opcional)
-                <input
-                  type="date"
-                  value={createForm.birth_date}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, birth_date: e.target.value }))}
-                  className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
-                />
-              </label>
-
-              <label className="flex flex-col gap-1 text-xs text-ink-soft">
-                Estado
-                <select
-                  value={createForm.status}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, status: e.target.value }))}
-                  className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
-                >
-                  <option value="confirmed">Confirmada</option>
-                  <option value="requested">Por confirmar</option>
-                </select>
-              </label>
-
-              <label className="flex flex-col gap-1 text-xs text-ink-soft">
-                Monto total en {currency} (opcional)
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="Se calcula con la tarifa si lo dejas vacío"
-                  value={createForm.total_cents}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, total_cents: e.target.value }))}
-                  className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
-                />
-              </label>
-
-              <label className="flex flex-col gap-1 text-xs text-ink-soft">
-                Código promocional (opcional)
-                <input
-                  type="text"
-                  value={createForm.promo_code}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, promo_code: e.target.value }))}
-                  className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
-                />
-              </label>
-            </div>
-
-            <label className="flex items-center gap-2 text-xs text-ink-soft">
-              <input
-                type="checkbox"
-                checked={createForm.tour_interest}
-                onChange={(e) => setCreateForm((f) => ({ ...f, tour_interest: e.target.checked }))}
-                className="h-4 w-4 rounded border-line"
-              />
-              Interesado en tours / experiencias
-            </label>
-
-            {createForm.tour_interest && (
-              <label className="flex flex-col gap-1 text-xs text-ink-soft">
-                Notas sobre tours (opcional)
-                <textarea
-                  rows={2}
-                  value={createForm.tour_notes}
-                  onChange={(e) => setCreateForm((f) => ({ ...f, tour_notes: e.target.value }))}
-                  className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
-                />
-              </label>
-            )}
-
-            {createError && <p className="text-xs text-rust">{createError}</p>}
-
-            <div className="flex items-center gap-2">
-              <button
-                type="submit"
-                disabled={creating}
-                className="rounded-lg bg-terracotta px-4 py-2 text-xs font-medium text-paper transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                {creating ? "Guardando…" : "Guardar reserva"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCreate(false);
-                  setCreateError(null);
-                }}
-                className="text-xs text-ink-faint hover:text-ink"
-              >
-                Cancelar
-              </button>
-            </div>
-          </form>
-        )}
+        <p className="max-w-2xl text-sm text-ink-soft">
+          Esta lista ya es real: las solicitudes que llegan desde la página
+          pública de reservas quedan guardadas acá con estado{" "}
+          <span className="font-medium text-ink">Por confirmar</span>. Al
+          confirmarlas, se arma el mensaje de bienvenida para copiar y
+          mandar por WhatsApp o email mientras el envío automático todavía
+          no está conectado (ver n8n-templates/README.md).
+        </p>
 
         {error && (
           <p className="max-w-2xl rounded-lg border border-rust/30 bg-rust-soft px-4 py-3 text-sm text-rust">
@@ -649,7 +309,7 @@ export default function ReservasPage() {
 
         {reservations && reservations.length === 0 && !error && (
           <p className="max-w-2xl text-sm text-ink-faint">
-            Todavía no hay reservas reales. Van a aparecer acá apenas alguien complete el formulario en /reservar, o cuando cargues una a mano con &quot;+ Nueva reserva&quot;.
+            Todavía no hay reservas reales. Van a aparecer acá apenas alguien complete el formulario en /reservar.
           </p>
         )}
 
@@ -689,7 +349,7 @@ export default function ReservasPage() {
                       <td className="px-4 py-3 text-ink-soft">{formatDateRange(r.check_in, r.check_out)}</td>
                       <td className="px-4 py-3 tabular-nums text-ink-soft">{nights(r.check_in, r.check_out)}</td>
                       <td className="px-4 py-3">
-                        <Pill tone="neutral">{MANUAL_CHANNEL_LABELS[r.channel] ?? r.channel}</Pill>
+                        <Pill tone="neutral">{r.channel}</Pill>
                       </td>
                       <td className="px-4 py-3">
                         <button

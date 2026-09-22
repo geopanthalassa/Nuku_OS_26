@@ -59,8 +59,8 @@ export default function CuponesPage() {
 
   useEffect(() => {
     if (!accountId) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId]);
 
   async function handleCreate(e: React.FormEvent) {
