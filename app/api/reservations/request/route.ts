@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { checkAvailability, isOverlapConstraintError } from "@/lib/availability";
+import { nights } from "@/lib/format";
+
+// Estadía mínima de 2 noches — pedido de Andre (22/9/2026). Se valida acá
+// (fuente de verdad) y también en el cliente para dar feedback inmediato.
+const MIN_NIGHTS = 2;
 
 // POST /api/reservations/request
 //
@@ -119,6 +124,14 @@ export async function POST(req: Request) {
     if (!c || typeof c.full_name !== "string" || !c.full_name.trim()) {
       return NextResponse.json({ error: "Cada acompañante necesita al menos su nombre completo." }, { status: 400 });
     }
+  }
+
+  const stayNights = nights(check_in, check_out);
+  if (!Number.isFinite(stayNights) || stayNights < MIN_NIGHTS) {
+    return NextResponse.json(
+      { error: `La estadía mínima es de ${MIN_NIGHTS} noches. Elige un rango de fechas más amplio.` },
+      { status: 400 }
+    );
   }
 
   try {
