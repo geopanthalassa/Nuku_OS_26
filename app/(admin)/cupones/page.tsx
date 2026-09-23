@@ -136,12 +136,21 @@ export default function CuponesPage() {
     <>
       <TopBar account={account} title="Cupones" />
       <main className="flex-1 space-y-6 p-6">
+        {/* 23/9/2026: Andre leyó este texto y entendió que el descuento
+            todavía se calculaba a mano — pero eso ya se corrigió el
+            22/9/2026 (ver computeSuggestedAmount en reservas/page.tsx): el
+            monto que aparece al hacer clic en "Cobrar" ya viene con el
+            descuento del cupón aplicado solo. Se actualiza el texto para
+            que describa lo que realmente pasa hoy, no el proceso viejo. */}
         <p className="max-w-2xl text-sm text-ink-soft">
           Creá acá los códigos promocionales de {account.name}. Cuando alguien
-          escribe un código en el sitio del hostal, se valida en el momento
-          contra esta lista — pero el descuento no se aplica solo: queda
-          guardado en la reserva para que el equipo lo aplique a mano al
-          cobrar (ver el botón &quot;Cobrar&quot; en Reservas).
+          escribe un código en el sitio del hostal, queda guardado en su
+          reserva. El descuento se calcula solo: al confirmar el pago en el
+          hostal (botón &quot;Cobrar&quot; en Reservas), el monto ya viene con
+          el descuento del cupón aplicado — el equipo solo confirma que
+          coincide con lo cobrado. El pago siempre se recibe en persona (no
+          hay cobro automático online), por eso ese paso sigue siendo quien
+          registra que se pagó.
         </p>
 
         {error && (
