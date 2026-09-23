@@ -468,11 +468,22 @@ export function reservationConfirmationEmail(params: {
            23/9/2026 (4): + fondo "tapiz" (TAPIZ_URL) repetido detrás del
            logo, como en el PDF de referencia de Andre. background-color
            queda de respaldo por si el cliente de correo no pinta la imagen
-           de fondo. -->
+           de fondo.
+           23/9/2026 (7): Andre pidió que el correo se viera "en una sola
+           página, sin tanto scroll" al abrirlo en Gmail. El correo tiene
+           harta información (fecha, huéspedes, comodidades, botones,
+           footer) así que un poco de scroll es normal — pero se achicaron
+           los espacios en blanco de header, tarjeta turquesa, resumen,
+           comodidades y footer en todo el correo (menos padding vertical,
+           logo un poco más chico) para que ocupe bastante menos alto sin
+           sacar información. La frase suelta "Nos vemos bajo las
+           estrellas..." que antes era su propia franja se movió junto a
+           los botones de contacto, para no gastar una franja completa
+           solo en eso. -->
       <tr>
-        <td background="${TAPIZ_URL}" style="background-color: ${BRAND.tealDeep}; background-image: url('${TAPIZ_URL}'); background-repeat: repeat; padding: 32px 32px 26px; text-align: center;">
-          <img src="${LOGO_URL}" alt="Kuhane Etno-Hostal — Soul of Sunset" width="220" height="149" style="display: block; width: 220px; max-width: 70%; height: auto; margin: 0 auto;" />
-          <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 16px auto 0;">
+        <td background="${TAPIZ_URL}" style="background-color: ${BRAND.tealDeep}; background-image: url('${TAPIZ_URL}'); background-repeat: repeat; padding: 24px 32px 18px; text-align: center;">
+          <img src="${LOGO_URL}" alt="Kuhane Etno-Hostal — Soul of Sunset" width="190" height="128" style="display: block; width: 190px; max-width: 62%; height: auto; margin: 0 auto;" />
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 12px auto 0;">
             <tr>
               <td style="background-color: rgba(252,250,245,0.12); border: 1px solid ${BRAND.goldSoft}; border-radius: 999px; padding: 5px 16px;">
                 <span style="font-family: Arial, Helvetica, sans-serif; font-size: 11px; letter-spacing: 1.5px; color: ${BRAND.goldSoft};">SERNATUR N&deg;${SERNATUR_NUMBER}</span>
@@ -499,13 +510,13 @@ export function reservationConfirmationEmail(params: {
            el encabezado, para que todo el correo comparta el mismo
            detalle. -->
       <tr>
-        <td background="${TAPIZ_URL}" style="background-color: ${TEAL_MID}; background-image: url('${TAPIZ_URL}'); background-repeat: repeat; padding: 28px 32px; text-align: center;">
+        <td background="${TAPIZ_URL}" style="background-color: ${TEAL_MID}; background-image: url('${TAPIZ_URL}'); background-repeat: repeat; padding: 22px 32px; text-align: center;">
           <p style="margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 18px; color: ${BRAND.warmWhite};">
             <strong>&iexcl;IORANA, ${firstName}!</strong> Tenemos el agrado de<br />confirmar tu reserva
           </p>
-          <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 16px auto 0;">
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 12px auto 0;">
             <tr>
-              <td style="background-color: ${BRAND.warmWhite}; border-radius: 8px; padding: 10px 18px;">
+              <td style="background-color: ${BRAND.warmWhite}; border-radius: 8px; padding: 9px 18px;">
                 <span style="font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: ${BRAND.stoneSoft};">desde el</span>
                 <strong style="font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: ${BRAND.tealDeep};"> ${formatDateLong(
                   checkIn
@@ -517,21 +528,21 @@ export function reservationConfirmationEmail(params: {
               </td>
             </tr>
           </table>
-          <p style="margin: 16px 0 0; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.6; color: ${BRAND.goldSoft};">
+          <p style="margin: 12px 0 0; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.55; color: ${BRAND.goldSoft};">
             Estamos muy encantados de recibirte y asegurarte una <strong style="color: ${BRAND.warmWhite};">experiencia memorable</strong>, en Te Pito o Te Henua — el ombligo del mundo.
           </p>
 
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top: 18px; text-align: left;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top: 14px; text-align: left;">
             ${guestListHtml}
           </table>
 
           <!-- 23/9/2026 (3): aviso del segundo correo con la
                documentación/comprobante para embarcar — pedido explícito
                de Andre. -->
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top: 18px; text-align: left;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top: 14px; text-align: left;">
             <tr>
-              <td style="background-color: rgba(252,250,245,0.1); border: 1px solid rgba(252,250,245,0.25); border-radius: 10px; padding: 12px 14px;">
-                <span style="font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.6; color: ${BRAND.warmWhite};">
+              <td style="background-color: rgba(252,250,245,0.1); border: 1px solid rgba(252,250,245,0.25); border-radius: 10px; padding: 11px 14px;">
+                <span style="font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.55; color: ${BRAND.warmWhite};">
                   &#9993;&nbsp; Pronto recibir&aacute;s otro correo con el comprobante y la documentaci&oacute;n que te solicitan antes de embarcar rumbo a la isla.
                 </span>
               </td>
@@ -542,7 +553,7 @@ export function reservationConfirmationEmail(params: {
 
       <!-- Resumen de la reserva -->
       <tr>
-        <td style="padding: 28px 32px 0;">
+        <td style="padding: 22px 32px 0;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
             ${summaryRow("Habitación", escapeHtml(roomName), true)}
             ${summaryRow("Noches", String(nights))}
@@ -551,20 +562,20 @@ export function reservationConfirmationEmail(params: {
       </tr>
 
       <tr>
-        <td style="padding: 20px 32px 0;">
+        <td style="padding: 14px 32px 0;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
             <tr>
-              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.7; color: ${BRAND.stoneSoft}; padding: 4px 0;">
+              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.55; color: ${BRAND.stoneSoft}; padding: 3px 0;">
                 <span style="color: ${BRAND.teal};">&#10003;</span>&nbsp; Desayuno continental incluido
               </td>
             </tr>
             <tr>
-              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.7; color: ${BRAND.stoneSoft}; padding: 4px 0;">
+              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.55; color: ${BRAND.stoneSoft}; padding: 3px 0;">
                 <span style="color: ${BRAND.teal};">&#10003;</span>&nbsp; Traslado desde y hacia el aeropuerto incluido
               </td>
             </tr>
             <tr>
-              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.7; color: ${BRAND.stoneSoft}; padding: 4px 0;">
+              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.55; color: ${BRAND.stoneSoft}; padding: 3px 0;">
                 <span style="color: ${BRAND.teal};">&#10003;</span>&nbsp; Pago directo en el hostal — sin cobro online (efectivo, débito o crédito nacional o extranjera)
               </td>
             </tr>
@@ -575,10 +586,10 @@ export function reservationConfirmationEmail(params: {
       ${
         tourInterest
           ? `<tr>
-              <td style="padding: 20px 32px 0;">
+              <td style="padding: 14px 32px 0;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: ${BRAND.sand}; border-radius: 10px;">
                   <tr>
-                    <td style="padding: 14px 16px; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.6; color: ${BRAND.stoneSoft};">
+                    <td style="padding: 12px 16px; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.5; color: ${BRAND.stoneSoft};">
                       Nos avisaste que te interesan tours o experiencias en la isla — nuestro equipo te escribe aparte para coordinar el detalle y el valor.
                     </td>
                   </tr>
@@ -588,8 +599,12 @@ export function reservationConfirmationEmail(params: {
           : ""
       }
 
+      <!-- 23/9/2026 (7): la frase "Nos vemos bajo las estrellas..." tenía
+           antes su propia franja completa (32px arriba y abajo) solo para
+           esa línea. Se movió aquí, debajo de los botones de contacto, en
+           vez de gastar una franja aparte — ver nota de header más arriba. -->
       <tr>
-        <td style="padding: 28px 32px 0;">
+        <td style="padding: 20px 32px 26px;">
           <p style="margin: 0 0 12px; font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: ${BRAND.stoneSoft};">
             &iquest;Necesitas coordinar tu llegada o tienes alguna duda? Escr&iacute;benos:
           </p>
@@ -603,12 +618,7 @@ export function reservationConfirmationEmail(params: {
               </td>
             </tr>
           </table>
-        </td>
-      </tr>
-
-      <tr>
-        <td style="padding: 32px 32px 28px;">
-          <p style="margin: 0; font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 14px; color: ${BRAND.teal};">
+          <p style="margin: 16px 0 0; font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 14px; color: ${BRAND.teal};">
             Nos vemos bajo las estrellas de Rapa Nui.
           </p>
         </td>
@@ -616,19 +626,19 @@ export function reservationConfirmationEmail(params: {
 
       <!-- Footer con contacto, igual al comprobante oficial -->
       <tr>
-        <td style="background-color: ${BRAND.tealDeep}; padding: 20px 32px;">
+        <td style="background-color: ${BRAND.tealDeep}; padding: 16px 32px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
             <tr>
-              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: ${BRAND.goldSoft}; padding: 3px 0;">&#128205;&nbsp; ${ADDRESS}</td>
+              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: ${BRAND.goldSoft}; padding: 2px 0;">&#128205;&nbsp; ${ADDRESS}</td>
             </tr>
             <tr>
-              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: ${BRAND.goldSoft}; padding: 3px 0;">&#127760;&nbsp; www.kuhanehostal.com</td>
+              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: ${BRAND.goldSoft}; padding: 2px 0;">&#127760;&nbsp; www.kuhanehostal.com</td>
             </tr>
             <tr>
-              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: ${BRAND.goldSoft}; padding: 3px 0;">&#9993;&nbsp; contacto@kuhanehostal.com</td>
+              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: ${BRAND.goldSoft}; padding: 2px 0;">&#9993;&nbsp; contacto@kuhanehostal.com</td>
             </tr>
             <tr>
-              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: ${BRAND.goldSoft}; padding: 3px 0;">&#128222;&nbsp; +56 9 7766 8288</td>
+              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: ${BRAND.goldSoft}; padding: 2px 0;">&#128222;&nbsp; +56 9 7766 8288</td>
             </tr>
           </table>
         </td>
