@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { checkAvailability, isOverlapConstraintError } from "@/lib/availability";
 import { nights } from "@/lib/format";
+import { sendTransactionalEmail, reservationConfirmationEmail } from "@/lib/email";
 
 // Estadía mínima de 2 noches — pedido de Andre (22/9/2026). Se valida acá
 // (fuente de verdad) y también en el cliente para dar feedback inmediato.
@@ -276,6 +277,48 @@ export async function POST(req: Request) {
       // No revertimos la reserva por esto — ya quedó guardada y es lo más
       // importante — pero sí lo dejamos en el log para revisarlo a mano.
       console.error("[api/reservations/request] no se pudieron guardar los acompañantes", guestsError);
+    }
+
+    // Correo de confirmación al huésped — pedido urgente de Andre
+    // (23/9/2026): el sitio ya le promete "te enviamos la confirmación a tu
+    // correo" desde antes, pero nunca se había conectado el envío real.
+    // No revienta la respuesta si falla: la reserva ya quedó guardada, que
+    // es lo importante. Si el huésped no dejó email, simplemente no se
+    // manda nada (el campo es opcional en el formulario).
+    if (guestInfo.email) {
+      try {
+        const { data: room } = await supabase
+          .from("rooms")
+          .select("name")
+          .eq("id", room_id)
+          .maybeSingle();
+
+        const { subject, html } = reservationConfirmationEmail({
+          guestName: guestInfo.full_name,
+          roomName: room?.name ?? "[POR CONFIRMAR]",
+          checkIn: check_in,
+          checkOut: check_out,
+          nights: stayNights,
+          tourInterest: tour_interest === true,
+        });
+
+        const emailResult = await sendTransactionalEmail({
+          to: { email: guestInfo.email, name: guestInfo.full_name },
+          subject,
+          htmlContent: html,
+        });
+
+        if (!emailResult.sent) {
+          console.warn(
+            "[api/reservations/request] no se pudo enviar el correo de confirmación",
+            emailResult.reason,
+            "reservation_id:",
+            reservation.id
+          );
+        }
+      } catch (emailErr) {
+        console.error("[api/reservations/request] error inesperado enviando el correo de confirmación", emailErr);
+      }
     }
 
     return NextResponse.json({ reservation_id: reservation.id, guest_id: guestId });
