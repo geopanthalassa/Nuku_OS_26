@@ -212,10 +212,39 @@ export function internalReservationNotificationEmail(params: {
   return { subject, html };
 }
 
+// Paleta real de kuhanehostal.com (kuhane-live/app/globals.css) — se
+// reusa acá para que el correo se sienta parte de la misma marca en vez
+// de un template genérico.
+const BRAND = {
+  sand: "#f7f1e4",
+  warmWhite: "#fcfaf5",
+  stone: "#241f1a",
+  stoneSoft: "#4a423a",
+  tealDeep: "#0f3638",
+  teal: "#1a5f5f",
+  gold: "#b99b6b",
+  goldSoft: "#ddc9a3",
+};
+
+// Foto real del sitio (moai + traslado aeropuerto) — la misma que usa la
+// franja de "aeropuerto" en la home de kuhanehostal.com
+// (kuhane-live/lib/site-content.ts, aeropuerto.foto). Se referencia por URL
+// absoluta porque un correo no puede empaquetar los assets de Next.js.
+const HERO_IMAGE_URL = "https://kuhanehostal.com/images/experiencias/aeropuerto.jpg";
+
 // Contenido del correo de confirmación de reserva. Datos reales confirmados
 // por Andre a lo largo del proyecto: no hay cobro online (se paga en el
 // hostal, efectivo/débito/crédito nacional o extranjera), desayuno
 // continental y traslado aeropuerto incluidos, contacto WhatsApp/email.
+//
+// Rediseño 23/9/2026 a pedido de Andre ("mucho más vistoso y lindo, con
+// frases llamativas de la isla") — usa la paleta y la foto real del sitio,
+// y dos frases genuinas de la cultura rapanui (no inventadas): "Iorana" es
+// el saludo/bienvenida en lengua rapanui, y "Te Pito o Te Henua" ("el
+// ombligo del mundo") es el nombre tradicional de la isla — ambas de uso
+// público y ya conocido, no traducciones inventadas para este correo.
+// Tablas + estilos inline porque así se renderiza de forma confiable en
+// Gmail/Outlook/Apple Mail (un <style> en <head> no es fiable en todos).
 export function reservationConfirmationEmail(params: {
   guestName: string;
   roomName: string;
@@ -226,27 +255,127 @@ export function reservationConfirmationEmail(params: {
 }) {
   const { guestName, roomName, checkIn, checkOut, nights, tourInterest } = params;
   const subject = `Tu reserva en Kuhane Etno-Hostal — ${formatDateLong(checkIn)} al ${formatDateLong(checkOut)}`;
+  const firstName = escapeHtml(guestName.trim().split(/\s+/)[0] || guestName);
+
+  const summaryRow = (label: string, value: string, strong = false) => `
+    <tr>
+      <td style="padding: 10px 0; border-bottom: 1px solid #e5ddc9; font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: ${BRAND.stoneSoft};">${label}</td>
+      <td style="padding: 10px 0; border-bottom: 1px solid #e5ddc9; font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: ${BRAND.stone}; text-align: right;">${
+        strong ? `<strong>${value}</strong>` : value
+      }</td>
+    </tr>`;
 
   const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #2f2b26;">
-      <h1 style="font-size: 20px; color: #1f4b43;">¡Hola ${escapeHtml(guestName)}!</h1>
-      <p>Tu reserva en <strong>Kuhane Etno-Hostal</strong> quedó registrada. Este es tu resumen:</p>
-      <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
-        <tr><td style="padding: 6px 0; color: #6b645c;">Habitación</td><td style="padding: 6px 0; text-align: right;"><strong>${escapeHtml(roomName)}</strong></td></tr>
-        <tr><td style="padding: 6px 0; color: #6b645c;">Llegada</td><td style="padding: 6px 0; text-align: right;">${formatDateLong(checkIn)}</td></tr>
-        <tr><td style="padding: 6px 0; color: #6b645c;">Salida</td><td style="padding: 6px 0; text-align: right;">${formatDateLong(checkOut)}</td></tr>
-        <tr><td style="padding: 6px 0; color: #6b645c;">Noches</td><td style="padding: 6px 0; text-align: right;">${nights}</td></tr>
-      </table>
-      <p>El pago se hace directo en el hostal — no se ha realizado ningún cobro online. Aceptamos efectivo, y débito o crédito (nacional o extranjera).</p>
-      <p>Tu estadía incluye desayuno continental y traslado desde y hacia el aeropuerto.</p>
+  <div style="background-color: ${BRAND.sand}; padding: 32px 16px; font-family: Arial, Helvetica, sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 560px; margin: 0 auto; background-color: ${BRAND.warmWhite}; border-radius: 16px; overflow: hidden; box-shadow: 0 12px 32px rgba(15, 54, 56, 0.12);">
+
+      <tr>
+        <td style="background-color: ${BRAND.tealDeep}; padding: 28px 32px; text-align: center;">
+          <p style="margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 12px; letter-spacing: 4px; text-transform: uppercase; color: ${BRAND.goldSoft};">Kuhane</p>
+          <p style="margin: 4px 0 0; font-family: Arial, Helvetica, sans-serif; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #d7e6e4;">Etno-Hostal &middot; Rapa Nui</p>
+        </td>
+      </tr>
+
+      <tr>
+        <td>
+          <img src="${HERO_IMAGE_URL}" alt="Rapa Nui" width="560" style="display: block; width: 100%; max-width: 560px; height: auto;" />
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding: 36px 32px 8px;">
+          <p style="margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 26px; color: ${BRAND.tealDeep};">Iorana, ${firstName}!</p>
+          <p style="margin: 12px 0 0; font-family: Arial, Helvetica, sans-serif; font-size: 15px; line-height: 1.6; color: ${BRAND.stoneSoft};">
+            Tu reserva en <strong style="color: ${BRAND.stone};">Kuhane Etno-Hostal</strong> ya quedó registrada. Tu aventura en Te Pito o Te Henua — el ombligo del mundo — está en cuenta regresiva.
+          </p>
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding: 20px 32px 0;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            ${summaryRow("Habitación", escapeHtml(roomName), true)}
+            ${summaryRow("Llegada", formatDateLong(checkIn))}
+            ${summaryRow("Salida", formatDateLong(checkOut))}
+            ${summaryRow("Noches", String(nights))}
+          </table>
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding: 24px 32px 0;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.7; color: ${BRAND.stoneSoft}; padding: 4px 0;">
+                <span style="color: ${BRAND.teal};">&#10003;</span>&nbsp; Desayuno continental incluido
+              </td>
+            </tr>
+            <tr>
+              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.7; color: ${BRAND.stoneSoft}; padding: 4px 0;">
+                <span style="color: ${BRAND.teal};">&#10003;</span>&nbsp; Traslado desde y hacia el aeropuerto incluido
+              </td>
+            </tr>
+            <tr>
+              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.7; color: ${BRAND.stoneSoft}; padding: 4px 0;">
+                <span style="color: ${BRAND.teal};">&#10003;</span>&nbsp; Pago directo en el hostal — sin cobro online (efectivo, débito o crédito nacional o extranjera)
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
       ${
         tourInterest
-          ? `<p>Nos avisaste que te interesan tours o experiencias en la isla — nuestro equipo te escribe aparte para coordinar el detalle y el valor.</p>`
+          ? `<tr>
+              <td style="padding: 20px 32px 0;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: ${BRAND.sand}; border-radius: 10px;">
+                  <tr>
+                    <td style="padding: 14px 16px; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.6; color: ${BRAND.stoneSoft};">
+                      Nos avisaste que te interesan tours o experiencias en la isla — nuestro equipo te escribe aparte para coordinar el detalle y el valor.
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>`
           : ""
       }
-      <p>Si necesitas coordinar tu llegada o tienes alguna duda, escríbenos por WhatsApp al <strong>+56 9 7766 8288</strong> o a <strong>contacto@kuhanehostal.com</strong>.</p>
-      <p style="margin-top: 24px; color: #6b645c; font-size: 13px;">Kuhane Etno-Hostal — Hanga Roa, Isla de Pascua, Rapa Nui.</p>
-    </div>
+
+      <tr>
+        <td style="padding: 28px 32px 0;">
+          <p style="margin: 0 0 12px; font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: ${BRAND.stoneSoft};">
+            ¿Necesitas coordinar tu llegada o tienes alguna duda? Escríbenos:
+          </p>
+          <table role="presentation" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="padding-right: 8px;">
+                <a href="https://wa.me/56977668288" style="display: inline-block; background-color: #25D366; color: #ffffff; font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: bold; text-decoration: none; padding: 10px 18px; border-radius: 999px;">WhatsApp</a>
+              </td>
+              <td>
+                <a href="mailto:contacto@kuhanehostal.com" style="display: inline-block; background-color: ${BRAND.tealDeep}; color: ${BRAND.warmWhite}; font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: bold; text-decoration: none; padding: 10px 18px; border-radius: 999px;">Email</a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding: 32px 32px 28px;">
+          <p style="margin: 0; font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 14px; color: ${BRAND.teal};">
+            Nos vemos bajo las estrellas de Rapa Nui.
+          </p>
+        </td>
+      </tr>
+
+      <tr>
+        <td style="background-color: ${BRAND.sand}; padding: 16px 32px; text-align: center;">
+          <p style="margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 11px; letter-spacing: 0.5px; color: ${BRAND.stoneSoft};">
+            Kuhane Etno-Hostal &middot; Hanga Roa, Isla de Pascua, Rapa Nui
+          </p>
+        </td>
+      </tr>
+
+    </table>
+  </div>
   `.trim();
 
   return { subject, html };
