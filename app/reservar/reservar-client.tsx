@@ -16,6 +16,7 @@ type Room = {
 type GuestForm = {
   full_name: string;
   document_id: string;
+  nationality: string;
   email: string;
   phone: string;
   birth_date: string;
@@ -56,6 +57,7 @@ function daysUntil(dateStr: string) {
 const EMPTY_GUEST: GuestForm = {
   full_name: "",
   document_id: "",
+  nationality: "",
   email: "",
   phone: "",
   birth_date: "",
@@ -188,6 +190,7 @@ export default function ReservarClient() {
           guest: {
             full_name: guestForm.full_name.trim(),
             document_id: guestForm.document_id.trim(),
+            nationality: guestForm.nationality.trim() || undefined,
             email: guestForm.email.trim() || undefined,
             phone: guestForm.phone.trim() || undefined,
             birth_date: guestForm.birth_date || undefined,
@@ -202,6 +205,7 @@ export default function ReservarClient() {
           companions: companions.map((c) => ({
             full_name: c.full_name.trim(),
             document_id: c.document_id.trim() || undefined,
+            nationality: c.nationality.trim() || undefined,
             email: c.email.trim() || undefined,
             phone: c.phone.trim() || undefined,
             birth_date: c.birth_date || undefined,
@@ -287,6 +291,13 @@ export default function ReservarClient() {
           className="rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
         />
         <input
+          key={`${keyPrefix}-nationality`}
+          value={value.nationality}
+          onChange={(e) => onChange({ nationality: e.target.value })}
+          placeholder="Nacionalidad (ej: Chilena, Argentina...)"
+          className="rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
+        />
+        <input
           key={`${keyPrefix}-email`}
           value={value.email}
           onChange={(e) => onChange({ email: e.target.value })}
@@ -294,13 +305,19 @@ export default function ReservarClient() {
           type="email"
           className="rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
         />
-        <input
-          key={`${keyPrefix}-phone`}
-          value={value.phone}
-          onChange={(e) => onChange({ phone: e.target.value })}
-          placeholder="WhatsApp / teléfono"
-          className="rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
-        />
+        <div>
+          <input
+            key={`${keyPrefix}-phone`}
+            value={value.phone}
+            onChange={(e) => onChange({ phone: e.target.value })}
+            placeholder="WhatsApp / teléfono, ej: +56 9 1234 5678"
+            type="tel"
+            className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
+          />
+          <p className="mt-1 text-[11px] text-ink-faint">
+            Incluye el código de país (+56, +54, etc.) para poder ubicarte por WhatsApp.
+          </p>
+        </div>
         <div className="sm:col-span-2">
           <input
             key={`${keyPrefix}-birth`}

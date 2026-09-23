@@ -103,6 +103,7 @@ export default function CalendarioPage() {
     return { y: now.getFullYear(), m: now.getMonth() };
   });
   const [selected, setSelected] = useState<string>(todayKey());
+  const [hasAutoSelected, setHasAutoSelected] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FlightForm | null>(null);
   const [saving, setSaving] = useState(false);
@@ -139,6 +140,26 @@ export default function CalendarioPage() {
       map.get(r.check_out)!.departures.push(r);
     }
     return map;
+  }, [reservations]);
+
+  // Si hoy no tiene ni llegadas ni salidas, el panel por defecto mostraba
+  // "Nadie llega ni se va este día" y podía leerse como que el calendario
+  // no tenía nada cargado — pedido de Andre (23/9/2026). Ahora, la primera
+  // vez que cargan las reservas, si hoy está vacío saltamos sola vez al día
+  // más próximo (futuro o pasado reciente) que sí tenga algo, para que se
+  // vea de entrada que hay datos reales. No se repite en cargas posteriores
+  // ni pisa una selección manual (hasAutoSelected).
+  useEffect(() => {
+    if (hasAutoSelected || !reservations) return;
+    setHasAutoSelected(true);
+    if (byDay.has(selected)) return;
+    const days = Array.from(byDay.keys()).sort();
+    if (days.length === 0) return;
+    const next = days.find((d) => d >= selected) ?? days[days.length - 1];
+    setSelected(next);
+    const [y, m] = next.split("-").map(Number);
+    setCursor({ y, m: m - 1 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reservations]);
 
   const grid = useMemo(() => {

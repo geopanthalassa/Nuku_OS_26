@@ -1,12 +1,13 @@
-import Pill from "@/components/ui/Pill";
 import type { Account } from "@/lib/types";
 
+// La etiqueta "Modo demo" se sacó a pedido de Andre (23/9/2026): "ya debe
+// dejar de ser una version de prueba" — Reservas, Calendario y Resumen ya
+// leen datos reales de Supabase, así que mantenerla era engañoso.
 export default function TopBar({ account, title }: { account: Account; title: string }) {
   return (
     <header className="flex items-center justify-between border-b border-line bg-surface px-6 py-4">
       <h1 className="font-display text-xl">{title}</h1>
       <div className="flex items-center gap-3">
-        <Pill tone="olive">Modo demo</Pill>
         <button
           type="button"
           disabled

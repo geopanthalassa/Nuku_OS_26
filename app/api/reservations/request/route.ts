@@ -113,6 +113,7 @@ export async function POST(req: Request) {
     phone?: string;
     birth_date?: string;
     document_id?: string;
+    nationality?: string;
   } & DietaryFields;
   if (!guestInfo.full_name || typeof guestInfo.full_name !== "string") {
     return NextResponse.json({ error: "Falta guest.full_name." }, { status: 400 });
@@ -122,6 +123,7 @@ export async function POST(req: Request) {
     {
       full_name?: string;
       document_id?: string;
+      nationality?: string;
       birth_date?: string;
       phone?: string;
       email?: string;
@@ -169,7 +171,7 @@ export async function POST(req: Request) {
     if (filters.length > 0) {
       const { data } = await supabase
         .from("guests")
-        .select("id, birth_date, document_id")
+        .select("id, birth_date, document_id, nationality")
         .eq("account_id", account_id)
         .or(filters.join(","))
         .maybeSingle();
@@ -181,6 +183,7 @@ export async function POST(req: Request) {
       const patch: Record<string, string> = {};
       if (!existingGuest.birth_date && guestInfo.birth_date) patch.birth_date = guestInfo.birth_date;
       if (!existingGuest.document_id && guestInfo.document_id) patch.document_id = guestInfo.document_id;
+      if (!existingGuest.nationality && guestInfo.nationality) patch.nationality = guestInfo.nationality;
       if (Object.keys(patch).length > 0) {
         await supabase.from("guests").update(patch).eq("id", guestId);
       }
@@ -194,6 +197,7 @@ export async function POST(req: Request) {
           phone: guestInfo.phone || null,
           birth_date: guestInfo.birth_date || null,
           document_id: guestInfo.document_id || null,
+          nationality: guestInfo.nationality || null,
           source: "web",
         })
         .select("id")
@@ -259,6 +263,7 @@ export async function POST(req: Request) {
         reservation_id: reservation.id,
         full_name: guestInfo.full_name,
         document_id: guestInfo.document_id || null,
+        nationality: guestInfo.nationality || null,
         birth_date: guestInfo.birth_date || null,
         phone: guestInfo.phone || null,
         email: guestInfo.email || null,
@@ -270,6 +275,7 @@ export async function POST(req: Request) {
         reservation_id: reservation.id,
         full_name: c.full_name!.trim(),
         document_id: c.document_id || null,
+        nationality: c.nationality || null,
         birth_date: c.birth_date || null,
         phone: c.phone || null,
         email: c.email || null,
