@@ -385,14 +385,21 @@ export default function CalendarioPage() {
                     }`}
                   >
                     <span className="font-mono-ui text-xs tabular-nums text-ink-soft">{cell.day}</span>
+                    {/* 23/9/2026 (4): Andre reportó que casi no se veían estas
+                        marcas de llegada/salida — el problema real era de
+                        contraste, no de tamaño: un fondo pastel (bg-sage-soft
+                        / bg-rust-soft) sobre una celda que también es clara
+                        se pierde casi por completo. Se cambia a fondo sólido
+                        + texto blanco (mismo criterio que un chip de estado),
+                        más grande y con un poco más de padding. */}
                     <div className="flex flex-wrap gap-1">
                       {arrivalCount > 0 && (
-                        <span className="rounded-full bg-sage-soft px-1.5 text-[10px] font-semibold text-sage">
+                        <span className="flex items-center gap-0.5 rounded-full bg-sage px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">
                           ↓{arrivalCount}
                         </span>
                       )}
                       {departureCount > 0 && (
-                        <span className="rounded-full bg-rust-soft px-1.5 text-[10px] font-semibold text-rust">
+                        <span className="flex items-center gap-0.5 rounded-full bg-rust px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">
                           ↑{departureCount}
                         </span>
                       )}
@@ -404,10 +411,10 @@ export default function CalendarioPage() {
 
             <div className="mt-3 flex gap-4 px-1 text-[11px] text-ink-faint">
               <span>
-                <span className="mr-1 rounded-full bg-sage-soft px-1.5 text-sage">↓</span> llegan
+                <span className="mr-1 rounded-full bg-sage px-1.5 py-0.5 text-white">↓</span> llegan
               </span>
               <span>
-                <span className="mr-1 rounded-full bg-rust-soft px-1.5 text-rust">↑</span> se van
+                <span className="mr-1 rounded-full bg-rust px-1.5 py-0.5 text-white">↑</span> se van
               </span>
             </div>
           </div>
