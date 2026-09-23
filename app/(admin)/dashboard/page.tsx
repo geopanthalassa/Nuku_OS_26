@@ -31,6 +31,9 @@ type Reservation = {
   total_cents: number | null;
   guests: { full_name: string } | { full_name: string }[] | null;
   rooms: { name: string } | { name: string }[] | null;
+  // 23/9/2026: el nombre declarado en la reserva (titular) — la API ya lo
+  // manda, solo faltaba usarlo acá. Ver nota junto a la tabla de abajo.
+  reservation_guests: { full_name: string; is_primary: boolean }[] | null;
 };
 
 type RoomOption = { id: string; name: string };
@@ -165,9 +168,15 @@ export default function DashboardPage() {
                 {upcoming.map((r) => {
                   const guest = one(r.guests);
                   const room = one(r.rooms);
+                  // 23/9/2026: mismo arreglo que en Reservas y Calendario —
+                  // mostrar el nombre declarado en ESTA reserva, no el del
+                  // contacto reutilizado (ver lib/guest-match.ts).
+                  const people = r.reservation_guests ?? [];
+                  const primaryGuest = people.find((p) => p.is_primary) ?? people[0];
+                  const displayName = primaryGuest?.full_name ?? guest?.full_name ?? "—";
                   return (
                     <tr key={r.id} className="border-b border-line last:border-0">
-                      <td className="px-4 py-3 font-medium">{guest?.full_name ?? "—"}</td>
+                      <td className="px-4 py-3 font-medium">{displayName}</td>
                       <td className="px-4 py-3 text-ink-soft">{room?.name ?? "—"}</td>
                       <td className="px-4 py-3 text-ink-soft">{formatDateRange(r.check_in, r.check_out)}</td>
                       <td className="px-4 py-3">

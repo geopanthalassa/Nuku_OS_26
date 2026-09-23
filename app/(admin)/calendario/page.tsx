@@ -226,7 +226,10 @@ export default function CalendarioPage() {
       <div className="rounded-lg border border-line bg-surface p-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <p className="text-sm font-medium text-ink">{guest?.full_name ?? "—"}</p>
+            {/* 23/9/2026: nombre declarado en esta reserva (primary), no el
+                del contacto reutilizado (guest.full_name) — mismo arreglo
+                que en la lista de Reservas, ver lib/guest-match.ts. */}
+            <p className="text-sm font-medium text-ink">{primary?.full_name ?? guest?.full_name ?? "—"}</p>
             <p className="text-xs text-ink-faint">
               {room?.name ?? "—"}
               {guest?.phone ? ` · ${guest.phone}` : ""}

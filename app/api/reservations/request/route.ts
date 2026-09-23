@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { checkAvailability, isOverlapConstraintError } from "@/lib/availability";
+import { findMatchingGuest, guestConflictMessage } from "@/lib/guest-match";
 import { nights } from "@/lib/format";
 import { sendTransactionalEmail, reservationConfirmationEmail, internalReservationNotificationEmail } from "@/lib/email";
 
@@ -161,29 +162,27 @@ export async function POST(req: Request) {
     // Buscar huésped existente por email o teléfono dentro de la cuenta;
     // si no existe, crearlo. Si existe pero mandó datos nuevos que antes no
     // tenía (fecha de nacimiento, identificación), se los completamos.
-    let guestId: string;
-    const filters = [
-      guestInfo.email ? `email.eq.${guestInfo.email}` : null,
-      guestInfo.phone ? `phone.eq.${guestInfo.phone}` : null,
-    ].filter(Boolean) as string[];
+    // 23/9/2026: si el correo/teléfono ya pertenece a OTRO nombre, ya no se
+    // mezcla en silencio — se avisa con un error claro (ver lib/guest-match.ts).
+    const match = await findMatchingGuest(
+      supabase,
+      account_id,
+      guestInfo.full_name,
+      guestInfo.email,
+      guestInfo.phone
+    );
 
-    let existingGuest = null;
-    if (filters.length > 0) {
-      const { data } = await supabase
-        .from("guests")
-        .select("id, birth_date, document_id, nationality")
-        .eq("account_id", account_id)
-        .or(filters.join(","))
-        .maybeSingle();
-      existingGuest = data;
+    if (match.kind === "conflict") {
+      return NextResponse.json({ error: guestConflictMessage(match.existingName, match.matchedBy) }, { status: 409 });
     }
 
-    if (existingGuest) {
-      guestId = existingGuest.id;
+    let guestId: string;
+    if (match.kind === "existing") {
+      guestId = match.guestId;
       const patch: Record<string, string> = {};
-      if (!existingGuest.birth_date && guestInfo.birth_date) patch.birth_date = guestInfo.birth_date;
-      if (!existingGuest.document_id && guestInfo.document_id) patch.document_id = guestInfo.document_id;
-      if (!existingGuest.nationality && guestInfo.nationality) patch.nationality = guestInfo.nationality;
+      if (!match.birthDate && guestInfo.birth_date) patch.birth_date = guestInfo.birth_date;
+      if (!match.documentId && guestInfo.document_id) patch.document_id = guestInfo.document_id;
+      if (!match.nationality && guestInfo.nationality) patch.nationality = guestInfo.nationality;
       if (Object.keys(patch).length > 0) {
         await supabase.from("guests").update(patch).eq("id", guestId);
       }
@@ -312,6 +311,18 @@ export async function POST(req: Request) {
           checkOut: check_out,
           nights: stayNights,
           tourInterest: tour_interest === true,
+          guests: [
+            {
+              fullName: guestInfo.full_name,
+              nationality: guestInfo.nationality || null,
+              documentId: guestInfo.document_id || null,
+            },
+            ...companionList.map((c) => ({
+              fullName: c.full_name!.trim(),
+              nationality: c.nationality || null,
+              documentId: c.document_id || null,
+            })),
+          ],
         });
 
         const emailResult = await sendTransactionalEmail({

@@ -681,12 +681,20 @@ export default function ReservasPage() {
                   const room = one(r.rooms);
                   const totalCents = r.total_cents ?? room?.base_rate_cents ?? null;
                   const people = r.reservation_guests ?? [];
+                  // 23/9/2026: mostrar el nombre declarado en ESTA reserva
+                  // (reservation_guests, titular), no el del contacto
+                  // reutilizado (guests.full_name) — si el mismo teléfono o
+                  // correo ya estaba registrado a otro nombre, guests.full_name
+                  // se queda con el nombre viejo y confunde (ver lib/guest-match.ts
+                  // para cómo se evita esto en reservas nuevas).
+                  const primaryGuest = people.find((p) => p.is_primary) ?? people[0];
+                  const displayName = primaryGuest?.full_name ?? guest?.full_name ?? "—";
                   const isExpanded = expandedId === r.id;
                   return (
                     <Fragment key={r.id}>
                     <tr className="border-b border-line last:border-0">
                       <td className="px-4 py-3 font-medium">
-                        {guest?.full_name ?? "—"}
+                        {displayName}
                         {r.promo_code && (
                           <span className="ml-2 text-[11px] font-normal text-terracotta">{r.promo_code}</span>
                         )}

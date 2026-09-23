@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { renderAutomationMessage } from "@/lib/automations";
 import { checkAvailability, isOverlapConstraintError } from "@/lib/availability";
+import { findMatchingGuest, guestConflictMessage } from "@/lib/guest-match";
 import { requireAccountFromRequest, unauthorizedResponseBody } from "@/lib/auth/require-account";
 
 // GET/POST /api/dashboard/reservations
@@ -302,34 +303,27 @@ async function createReservation(accountId: string, payload: Record<string, unkn
     // si no existe, crearlo. Si existe pero mandó datos nuevos que antes no
     // tenía (fecha de nacimiento, identificación), se los completamos —
     // mismo patrón que /api/reservations/request.
-    let guestId: string;
-    const filters = [
-      guestInfo.email ? `email.eq.${guestInfo.email}` : null,
-      guestInfo.phone ? `phone.eq.${guestInfo.phone}` : null,
-    ].filter(Boolean) as string[];
+    // 23/9/2026: si el correo/teléfono ya pertenece a OTRO nombre, ya no se
+    // mezcla en silencio — se avisa con un error claro (ver lib/guest-match.ts).
+    const match = await findMatchingGuest(
+      supabase,
+      accountId,
+      guestInfo.full_name.trim(),
+      guestInfo.email,
+      guestInfo.phone
+    );
 
-    let existingGuest: {
-      id: string;
-      birth_date: string | null;
-      document_id: string | null;
-      nationality: string | null;
-    } | null = null;
-    if (filters.length > 0) {
-      const { data } = await supabase
-        .from("guests")
-        .select("id, birth_date, document_id, nationality")
-        .eq("account_id", accountId)
-        .or(filters.join(","))
-        .maybeSingle();
-      existingGuest = data;
+    if (match.kind === "conflict") {
+      return NextResponse.json({ error: guestConflictMessage(match.existingName, match.matchedBy) }, { status: 409 });
     }
 
-    if (existingGuest) {
-      guestId = existingGuest.id;
+    let guestId: string;
+    if (match.kind === "existing") {
+      guestId = match.guestId;
       const patch: Record<string, string> = {};
-      if (!existingGuest.birth_date && guestInfo.birth_date) patch.birth_date = guestInfo.birth_date;
-      if (!existingGuest.document_id && guestInfo.document_id) patch.document_id = guestInfo.document_id;
-      if (!existingGuest.nationality && guestInfo.nationality) patch.nationality = guestInfo.nationality;
+      if (!match.birthDate && guestInfo.birth_date) patch.birth_date = guestInfo.birth_date;
+      if (!match.documentId && guestInfo.document_id) patch.document_id = guestInfo.document_id;
+      if (!match.nationality && guestInfo.nationality) patch.nationality = guestInfo.nationality;
       if (Object.keys(patch).length > 0) {
         await supabase.from("guests").update(patch).eq("id", guestId);
       }
