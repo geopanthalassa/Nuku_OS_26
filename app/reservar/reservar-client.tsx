@@ -773,8 +773,20 @@ export default function ReservarClient() {
                 genérico de Nuku OS. El logo se copió como archivo local
                 (public/logo/kuhane-wordmark.png, igual al de kuhane-live)
                 en vez de apuntar a kuhanehostal.com, para no depender de
-                que ese sitio esté arriba cuando alguien reserve. */}
-            <div className="bg-teal-deep px-8 pb-7 pt-8 text-paper sm:px-10">
+                que ese sitio esté arriba cuando alguien reserve.
+
+                23/9/2026 (2): Andre pidió que este mismo encabezado también
+                lleve el "tapiz" (el patrón repetido del ícono de marca) que
+                ya se usa en el header de los dos correos — para que el
+                cartel de la web y los correos se vean como parte de un
+                mismo sistema. Misma lógica que el logo: se copió el PNG del
+                tapiz como archivo local (public/images/mail/tapiz-icon.png,
+                igual al de kuhane-live) en vez de apuntar a
+                kuhanehostal.com. */}
+            <div
+              className="bg-teal-deep bg-repeat px-8 pb-7 pt-8 text-paper sm:px-10"
+              style={{ backgroundImage: "url('/images/mail/tapiz-icon.png')" }}
+            >
               <img
                 src="/logo/kuhane-wordmark.png"
                 alt="Kuhane Etno-Hostal"
