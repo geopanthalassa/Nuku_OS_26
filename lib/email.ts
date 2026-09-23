@@ -66,6 +66,152 @@ function escapeHtml(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+// Persona (titular o acompañante) tal como llega el body de
+// /api/reservations/request — se reusa para armar el correo interno.
+type PersonForEmail = {
+  full_name?: string;
+  email?: string | null;
+  phone?: string | null;
+  birth_date?: string | null;
+  document_id?: string | null;
+  nationality?: string | null;
+  dietary_vegan?: boolean;
+  dietary_vegetarian?: boolean;
+  dietary_celiac?: boolean;
+  dietary_lactose_free?: boolean;
+  dietary_other?: string | null;
+  mobility_assistance?: boolean;
+  mobility_notes?: string | null;
+};
+
+// Junta las preferencias alimentarias y de movilidad de una persona en una
+// sola línea legible, o null si no marcó nada especial.
+function dietaryLine(p: PersonForEmail): string | null {
+  const items: string[] = [];
+  if (p.dietary_vegan) items.push("Vegano");
+  if (p.dietary_vegetarian) items.push("Vegetariano");
+  if (p.dietary_celiac) items.push("Celíaco");
+  if (p.dietary_lactose_free) items.push("Sin lactosa");
+  if (p.dietary_other) items.push(p.dietary_other);
+  if (p.mobility_assistance) items.push(`Asistencia de movilidad${p.mobility_notes ? `: ${p.mobility_notes}` : ""}`);
+  return items.length > 0 ? items.join(", ") : null;
+}
+
+function personRow(p: PersonForEmail, label: string) {
+  const dietary = dietaryLine(p);
+  const details = [
+    p.document_id ? `Doc: ${escapeHtml(p.document_id)}` : null,
+    p.nationality ? `Nacionalidad: ${escapeHtml(p.nationality)}` : null,
+    p.birth_date ? `F. nac.: ${formatDateLong(p.birth_date)}` : null,
+    p.phone ? `Tel.: ${escapeHtml(p.phone)}` : null,
+    p.email ? `Email: ${escapeHtml(p.email)}` : null,
+    dietary ? `Dieta/movilidad: ${escapeHtml(dietary)}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return `
+    <tr>
+      <td style="padding: 8px 0; border-bottom: 1px solid #e8e3d9; vertical-align: top;">
+        <div><strong>${escapeHtml(p.full_name ?? "[POR CONFIRMAR]")}</strong> <span style="color: #6b645c; font-size: 12px;">(${label})</span></div>
+        ${details ? `<div style="color: #6b645c; font-size: 13px; margin-top: 2px;">${details}</div>` : ""}
+      </td>
+    </tr>
+  `;
+}
+
+// Correo interno a Kuhane con el detalle completo de cada solicitud de
+// reserva — pedido de Andre (23/9/2026): "apenas diga reservar habitación
+// debe generarse un correo a kuhane con toda la información además de
+// todos los datos dentro de nuku OS". Nuku OS ya guarda todo esto (es la
+// fuente de verdad), este correo es solo un aviso inmediato para no tener
+// que entrar al panel a cada rato.
+export function internalReservationNotificationEmail(params: {
+  reservationId: string;
+  guest: PersonForEmail;
+  companions: PersonForEmail[];
+  roomName: string;
+  checkIn: string;
+  checkOut: string;
+  nights: number;
+  tourInterest: boolean;
+  tourNotes?: string | null;
+  promoCode?: string | null;
+  arrivalFlightTime?: string | null;
+  arrivalFlightNumber?: string | null;
+  departureFlightTime?: string | null;
+  departureFlightNumber?: string | null;
+}) {
+  const {
+    reservationId,
+    guest,
+    companions,
+    roomName,
+    checkIn,
+    checkOut,
+    nights,
+    tourInterest,
+    tourNotes,
+    promoCode,
+    arrivalFlightTime,
+    arrivalFlightNumber,
+    departureFlightTime,
+    departureFlightNumber,
+  } = params;
+
+  const subject = `Nueva solicitud de reserva — ${escapeHtml(guest.full_name ?? "[POR CONFIRMAR]")} — ${formatDateLong(checkIn)} al ${formatDateLong(checkOut)}`;
+
+  const flightRows = [
+    arrivalFlightTime || arrivalFlightNumber
+      ? `<tr><td style="padding: 6px 0; color: #6b645c;">Vuelo de llegada</td><td style="padding: 6px 0; text-align: right;">${
+          escapeHtml([arrivalFlightNumber, arrivalFlightTime].filter(Boolean).join(" · ")) || "—"
+        }</td></tr>`
+      : "",
+    departureFlightTime || departureFlightNumber
+      ? `<tr><td style="padding: 6px 0; color: #6b645c;">Vuelo de salida</td><td style="padding: 6px 0; text-align: right;">${
+          escapeHtml([departureFlightNumber, departureFlightTime].filter(Boolean).join(" · ")) || "—"
+        }</td></tr>`
+      : "",
+  ].join("");
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #2f2b26;">
+      <h1 style="font-size: 20px; color: #1f4b43;">Nueva solicitud de reserva</h1>
+      <p style="color: #6b645c; font-size: 13px;">ID reserva: ${escapeHtml(reservationId)}</p>
+
+      <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+        <tr><td style="padding: 6px 0; color: #6b645c;">Habitación</td><td style="padding: 6px 0; text-align: right;"><strong>${escapeHtml(roomName)}</strong></td></tr>
+        <tr><td style="padding: 6px 0; color: #6b645c;">Llegada</td><td style="padding: 6px 0; text-align: right;">${formatDateLong(checkIn)}</td></tr>
+        <tr><td style="padding: 6px 0; color: #6b645c;">Salida</td><td style="padding: 6px 0; text-align: right;">${formatDateLong(checkOut)}</td></tr>
+        <tr><td style="padding: 6px 0; color: #6b645c;">Noches</td><td style="padding: 6px 0; text-align: right;">${nights}</td></tr>
+        ${flightRows}
+        ${
+          promoCode
+            ? `<tr><td style="padding: 6px 0; color: #6b645c;">Código promo</td><td style="padding: 6px 0; text-align: right;">${escapeHtml(promoCode)}</td></tr>`
+            : ""
+        }
+        <tr><td style="padding: 6px 0; color: #6b645c;">Interés en tours</td><td style="padding: 6px 0; text-align: right;">${tourInterest ? "Sí" : "No"}</td></tr>
+      </table>
+
+      ${
+        tourNotes
+          ? `<p style="margin: 0 0 16px;"><strong>Notas de tour:</strong> ${escapeHtml(tourNotes)}</p>`
+          : ""
+      }
+
+      <p style="margin: 20px 0 6px; font-size: 13px; color: #6b645c; text-transform: uppercase; letter-spacing: 0.08em;">Personas declaradas</p>
+      <table style="width: 100%; border-collapse: collapse;">
+        ${personRow(guest, "titular")}
+        ${companions.map((c) => personRow(c, "acompañante")).join("")}
+      </table>
+
+      <p style="margin-top: 24px; color: #6b645c; font-size: 13px;">Todo esto ya quedó guardado en Nuku OS — este correo es solo el aviso inmediato.</p>
+    </div>
+  `.trim();
+
+  return { subject, html };
+}
+
 // Contenido del correo de confirmación de reserva. Datos reales confirmados
 // por Andre a lo largo del proyecto: no hay cobro online (se paga en el
 // hostal, efectivo/débito/crédito nacional o extranjera), desayuno
