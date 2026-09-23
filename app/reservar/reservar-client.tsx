@@ -78,6 +78,19 @@ export default function ReservarClient() {
   const guestsParam = Number(params.get("guests") ?? "2");
   const guests = Number.isFinite(guestsParam) && guestsParam > 0 ? guestsParam : 2;
   const promo = params.get("promo") ?? "";
+  const tourParam = params.get("tour") ?? "";
+
+  // Tour agregado desde kuhane-web (/tours -> homepage -> acá). Precarga el
+  // check de "nos interesan tours" y deja el nombre del tour en las notas,
+  // sin pisar lo que la persona ya haya escrito. Pedido de Andre
+  // (22-23/9/2026): ningún precio de tour se muestra en ningún lado del
+  // sitio público — el equipo lo cotiza al confirmar la reserva.
+  useEffect(() => {
+    if (!tourParam) return;
+    setWantsTours(true);
+    setTourNotes((prev) => (prev.trim() ? prev : `Tour agregado desde la página: ${tourParam}`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tourParam]);
 
   const nightCount = useMemo(() => {
     if (!checkin || !checkout) return null;
