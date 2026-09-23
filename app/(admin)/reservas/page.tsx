@@ -362,15 +362,7 @@ export default function ReservasPage() {
     <>
       <TopBar account={account} title="Reservas" />
       <main className="flex-1 space-y-5 p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <p className="max-w-2xl text-sm text-ink-soft">
-            Esta lista ya es real: las solicitudes que llegan desde la página
-            pública de reservas quedan guardadas acá con estado{" "}
-            <span className="font-medium text-ink">Por confirmar</span>. Al
-            confirmarlas, se arma el mensaje de bienvenida para copiar y
-            mandar por WhatsApp o email mientras el envío automático todavía
-            no está conectado (ver n8n-templates/README.md).
-          </p>
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <button
             type="button"
             onClick={() => {

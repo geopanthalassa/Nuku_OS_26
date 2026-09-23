@@ -94,14 +94,6 @@ export default function HuespedesPage() {
     <>
       <TopBar account={account} title="Huéspedes" />
       <main className="flex-1 space-y-5 p-6">
-        <p className="max-w-2xl text-sm text-ink-soft">
-          CRM (Fase 3 del plan): una ficha por huésped en vez de repartida
-          entre WhatsApp, Instagram y la memoria de quien atendió. Acá
-          todavía es una lista simple, armada con tus reservas reales — el
-          historial detallado y las automatizaciones de reseña se agregan en
-          la siguiente etapa.
-        </p>
-
         {error && (
           <p className="max-w-2xl rounded-lg border border-rust/30 bg-rust-soft px-4 py-3 text-sm text-rust">
             {error}
