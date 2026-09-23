@@ -18,6 +18,11 @@
   --sage-soft: #e3e6d2;
   --rust: #9c4430;
   --rust-soft: #f3ded6;
+  /* 23/9/2026: azul petróleo de la marca Kuhane (kuhanehostal.com),
+     mismo valor que BRAND.tealDeep en lib/email.ts — para que el modal
+     de "reserva confirmada" use el mismo color que ya se ve en los
+     correos, en vez del verde oliva genérico de Nuku OS. */
+  --teal-deep: #0f3638;
 
   --background: var(--paper);
   --foreground: var(--ink);
@@ -40,6 +45,7 @@
   --color-sage-soft: var(--sage-soft);
   --color-rust: var(--rust);
   --color-rust-soft: var(--rust-soft);
+  --color-teal-deep: var(--teal-deep);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);

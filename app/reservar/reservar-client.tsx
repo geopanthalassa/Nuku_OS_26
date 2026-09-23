@@ -756,11 +756,23 @@ export default function ReservarClient() {
               ×
             </button>
 
-            <div className="bg-olive px-8 pb-7 pt-9 text-paper sm:px-10">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-paper/15 text-xl">
-                ✓
-              </div>
-              <h2 id="reserva-confirmada-titulo" className="font-display mt-4 text-2xl sm:text-3xl">
+            {/* 23/9/2026: Andre pidió sacar el check genérico y el verde
+                oliva de este cartel de confirmación — quería el logo de
+                Kuhane (el mismo wordmark blanco que aparece arriba en el
+                hero de kuhanehostal.com, ver Nav.tsx en kuhane-live) y el
+                azul petróleo de la marca (mismo BRAND.tealDeep que ya
+                usan los dos correos en lib/email.ts), no el verde oliva
+                genérico de Nuku OS. El logo se copió como archivo local
+                (public/logo/kuhane-wordmark.png, igual al de kuhane-live)
+                en vez de apuntar a kuhanehostal.com, para no depender de
+                que ese sitio esté arriba cuando alguien reserve. */}
+            <div className="bg-teal-deep px-8 pb-7 pt-8 text-paper sm:px-10">
+              <img
+                src="/logo/kuhane-wordmark.png"
+                alt="Kuhane Etno-Hostal"
+                className="h-8 w-auto brightness-0 invert sm:h-9"
+              />
+              <h2 id="reserva-confirmada-titulo" className="font-display mt-5 text-2xl sm:text-3xl">
                 Gracias por preferirnos{guestForm.full_name ? `, ${guestForm.full_name.split(" ")[0]}` : ""}
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-paper/85">
