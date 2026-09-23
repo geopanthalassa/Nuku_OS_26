@@ -280,6 +280,10 @@ const TEAL_MID = BRAND.teal;
 // referencia que Andre comparte para el correo de documentación/Sernatur
 // (color muestreado del header de ese PDF: rgb(0,227,216)) — no es un
 // color inventado, es el mismo que ya usa ese documento oficial.
+// 23/9/2026 (6): Andre pidió cambiar el header de ese correo a petróleo
+// (BRAND.tealDeep), igual al del correo de confirmación — ya no se usa
+// como fondo, se deja declarado por si se necesita el valor muestreado
+// más adelante.
 const TURQUOISE_BRIGHT = "#00e0d4";
 
 // 23/9/2026 (4): envuelve el fragmento de cada correo en un documento
@@ -328,6 +332,20 @@ const HERO_IMAGE_URL = "https://kuhanehostal.com/images/mail/atardecer-email.jpg
 const HERO_IMAGE_WIDTH = 560;
 const HERO_IMAGE_HEIGHT = 355; // mismo ratio que atardecer-email.jpg (1120x709)
 
+// 23/9/2026 (6): foto real distinta para el correo de documentación, para
+// que no se viera repetida respecto al correo de confirmación. Primer
+// intento: el cráter Rano Kau desde arriba (rapa-nui/territorio.jpg) — a
+// Andre le pareció "muy genérica" (podría ser de cualquier destino, no dice
+// "Kuhane"). Reemplazada por kuhane_04.jpg (ya existente en el sitio, foto
+// real, no inventada): muestra la casa real de Kuhane de fondo y un moái
+// tallado en madera — conecta con "los moáis" que Andre pidió sin repetir
+// la foto de la estatua de piedra del correo de confirmación. Recortada y
+// redimensionada al mismo tamaño exacto que HERO_IMAGE (1120x709) y con la
+// misma marca de agua (wordmark blanco, 200px, 80% opacidad, 28px margen).
+const DOC_HERO_IMAGE_URL = "https://kuhanehostal.com/images/mail/kuhane-cultura-email.jpg";
+const DOC_HERO_IMAGE_WIDTH = 560;
+const DOC_HERO_IMAGE_HEIGHT = 355;
+
 // Logo real de Kuhane (kuhane-live/public/logo/kuhane-lockup-full.png) —
 // el mismo que usa el Footer del sitio. Reemplaza el texto "KUHANE" en
 // tipografía genérica que llevaba la primera versión de este correo:
@@ -345,15 +363,22 @@ const WORDMARK_WHITE_URL = "https://kuhanehostal.com/logo/kuhane-wordmark-white.
 // de ver el PDF de referencia de nuevo — en ese PDF el encabezado turquesa
 // lleva un patrón repetido del mismo ícono tiki/máscara detrás de la foto,
 // no un color liso. Sacado del propio ícono "Soul of Sunset" de Kuhane
-// (el mismo que ya usa LOGO_URL, recortado a un solo glifo), en blanco muy
-// transparente (~16% opacidad), repetido en mosaico de 224x175px. No es un
-// ícono inventado — es el ícono real de la marca, solo aislado y repetido.
-// Se aplica como fondo (background-image + background-repeat, con
-// background-color como respaldo si el cliente de correo no soporta
-// imágenes de fondo) en el encabezado del correo de confirmación (sobre
-// tealDeep) y en el del correo de documentación (sobre TURQUOISE_BRIGHT),
-// para que ambos correos compartan ese detalle visual del PDF de Kuhane.
+// (el mismo que ya usa LOGO_URL, recortado a un solo glifo). No es un ícono
+// inventado — es el ícono real de la marca, solo aislado y repetido en
+// mosaico de 224x175px. Se aplica como fondo (background-image +
+// background-repeat, con background-color de respaldo si el cliente de
+// correo no soporta imágenes de fondo).
+//
+// 23/9/2026 (5): Andre pidió que el tapiz oscuro fuera más transparente
+// (se le restaba protagonismo al logo) y que el mismo tratamiento se
+// aplicara también en las secciones de color claro/arena, no solo en los
+// encabezados — por eso hay dos versiones:
+//   - TAPIZ_URL: ícono blanco, ~7% opacidad (antes ~16%) — para fondos
+//     oscuros (tealDeep, TURQUOISE_BRIGHT).
+//   - TAPIZ_LIGHT_URL: mismo ícono en tealDeep, ~9% opacidad — para fondos
+//     claros (goldSoft/arena, warmWhite).
 const TAPIZ_URL = "https://kuhanehostal.com/images/mail/tapiz-icon.png";
+const TAPIZ_LIGHT_URL = "https://kuhanehostal.com/images/mail/tapiz-icon-light.png";
 
 // Datos reales de la ficha/comprobante oficial de Kuhane (el PDF de
 // confirmación que Andre ya usa y que compartió como referencia de
@@ -470,9 +495,11 @@ export function reservationConfirmationEmail(params: {
       <!-- 23/9/2026 (3): franja verde-azulado en vez del beige/arena
            original — pedido explícito de Andre ("que el fondo no sea
            beige"). Texto en blanco/dorado para que se lea bien sobre el
-           color oscuro. -->
+           color oscuro. 23/9/2026 (5): + tapiz oscuro (TAPIZ_URL), como en
+           el encabezado, para que todo el correo comparta el mismo
+           detalle. -->
       <tr>
-        <td style="background-color: ${TEAL_MID}; padding: 28px 32px; text-align: center;">
+        <td background="${TAPIZ_URL}" style="background-color: ${TEAL_MID}; background-image: url('${TAPIZ_URL}'); background-repeat: repeat; padding: 28px 32px; text-align: center;">
           <p style="margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 18px; color: ${BRAND.warmWhite};">
             <strong>&iexcl;IORANA, ${firstName}!</strong> Tenemos el agrado de<br />confirmar tu reserva
           </p>
@@ -674,26 +701,49 @@ export function reservationDocumentationEmail(params: {
   <div style="background-color: ${BRAND.sand}; padding: 32px 16px; font-family: Arial, Helvetica, sans-serif;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 560px; margin: 0 auto; background-color: ${BRAND.warmWhite}; border-radius: 16px; overflow: hidden; box-shadow: 0 12px 32px rgba(15, 54, 56, 0.12);">
 
-      <!-- Header turquesa: wordmark blanco (el lockup a color se pierde
-           sobre este fondo, ver nota en WORDMARK_WHITE_URL) + badge Sernatur.
-           23/9/2026 (4): + fondo "tapiz" (TAPIZ_URL), igual que en el PDF de
-           referencia y en el header del correo de confirmación. -->
+      <!-- Header: wordmark blanco sobre fondo petróleo (tealDeep) + badge
+           Sernatur. 23/9/2026 (6): Andre pidió que este header fuera
+           petróleo en vez de turquesa, igual que el del correo de
+           confirmación — "el resto que quede igual". El badge se ajustó a
+           los mismos colores claros/dorados que usa el correo de
+           confirmación (antes estaba pensado para el fondo turquesa y no
+           se leía bien sobre petróleo). + fondo "tapiz" (TAPIZ_URL), igual
+           que en el PDF de referencia y en el header del correo de
+           confirmación. -->
       <tr>
-        <td background="${TAPIZ_URL}" style="background-color: ${TURQUOISE_BRIGHT}; background-image: url('${TAPIZ_URL}'); background-repeat: repeat; padding: 32px 32px 26px; text-align: center;">
+        <td background="${TAPIZ_URL}" style="background-color: ${BRAND.tealDeep}; background-image: url('${TAPIZ_URL}'); background-repeat: repeat; padding: 32px 32px 26px; text-align: center;">
           <img src="${WORDMARK_WHITE_URL}" alt="Kuhane Etno-Hostal" width="220" height="70" style="display: block; width: 220px; max-width: 70%; height: auto; margin: 0 auto;" />
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 16px auto 0;">
             <tr>
-              <td style="background-color: rgba(15,54,56,0.18); border: 1px solid ${BRAND.tealDeep}; border-radius: 999px; padding: 5px 16px;">
-                <span style="font-family: Arial, Helvetica, sans-serif; font-size: 11px; letter-spacing: 1.5px; color: ${BRAND.tealDeep};">SERNATUR N&deg;${SERNATUR_NUMBER}</span>
+              <td style="background-color: rgba(252,250,245,0.12); border: 1px solid ${BRAND.goldSoft}; border-radius: 999px; padding: 5px 16px;">
+                <span style="font-family: Arial, Helvetica, sans-serif; font-size: 11px; letter-spacing: 1.5px; color: ${BRAND.goldSoft};">SERNATUR N&deg;${SERNATUR_NUMBER}</span>
               </td>
             </tr>
           </table>
         </td>
       </tr>
 
-      <!-- Franja arena: "IORANA! confirmamos tu reserva" + lista de huéspedes -->
+      <!-- 23/9/2026 (6): Andre notó que usar la misma foto del atardecer en
+           los dos correos se veía "copiado y pegado". Se probó primero con
+           el cráter Rano Kau, pero le pareció muy genérica (no decía
+           "Kuhane"); se reemplazó por kuhane_04.jpg — foto real de la casa
+           de Kuhane con un moái tallado en madera, que conecta con "los
+           moáis" sin repetir la foto de la estatua de piedra del correo de
+           confirmación. Mismo formato exacto (1120x709,
+           DOC_HERO_IMAGE_WIDTH/HEIGHT) y misma marca de agua del wordmark
+           blanco (200px de ancho, 80% opacidad, 28px de margen abajo a la
+           derecha) que la foto del correo de confirmación. -->
       <tr>
-        <td style="background-color: ${BRAND.goldSoft}; padding: 28px 32px; text-align: center;">
+        <td>
+          <img src="${DOC_HERO_IMAGE_URL}" alt="Kuhane Etno-Hostal — cultura Rapa Nui" width="${DOC_HERO_IMAGE_WIDTH}" height="${DOC_HERO_IMAGE_HEIGHT}" style="display: block; width: 100%; max-width: ${DOC_HERO_IMAGE_WIDTH}px; height: auto;" />
+        </td>
+      </tr>
+
+      <!-- Franja arena: "IORANA! confirmamos tu reserva" + lista de
+           huéspedes. 23/9/2026 (5): + tapiz claro (TAPIZ_LIGHT_URL), a
+           pedido de Andre ("el mismo tapiz en el color arena"). -->
+      <tr>
+        <td background="${TAPIZ_LIGHT_URL}" style="background-color: ${BRAND.goldSoft}; background-image: url('${TAPIZ_LIGHT_URL}'); background-repeat: repeat; padding: 28px 32px; text-align: center;">
           <p style="margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 18px; color: ${BRAND.tealDeep};">
             <strong>&iexcl;IORANA, ${firstName}!</strong> Tenemos el agrado de<br />confirmar tu reserva
           </p>
@@ -726,8 +776,12 @@ export function reservationDocumentationEmail(params: {
         </td>
       </tr>
 
+      <!-- 23/9/2026 (5): antes esta fila tenía padding-bottom: 0 y venía
+           justo antes del footer oscuro, sin espacio — los botones
+           quedaban pegados contra el footer y se veían "cortados".
+           Se agrega padding inferior (28px) para que respiren. -->
       <tr>
-        <td style="padding: 24px 32px 0;">
+        <td style="padding: 24px 32px 28px;">
           <p style="margin: 0 0 12px; font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: ${BRAND.stoneSoft};">
             &iquest;Alguna duda sobre tu documentaci&oacute;n? Escr&iacute;benos:
           </p>
