@@ -51,6 +51,7 @@ type Reservation = {
         id: string;
         full_name: string;
         document_id: string | null;
+        nationality: string | null;
         is_primary: boolean;
         dietary_vegan: boolean;
         dietary_vegetarian: boolean;
@@ -130,6 +131,7 @@ const EMPTY_CREATE_FORM = {
   email: "",
   phone: "",
   document_id: "",
+  nationality: "",
   birth_date: "",
   total_cents: "",
   promo_code: "",
@@ -333,6 +335,7 @@ export default function ReservasPage() {
             email: createForm.email || undefined,
             phone: createForm.phone || undefined,
             document_id: createForm.document_id || undefined,
+            nationality: createForm.nationality || undefined,
             birth_date: createForm.birth_date || undefined,
           },
         }),
@@ -494,6 +497,17 @@ export default function ReservasPage() {
                   type="text"
                   value={createForm.document_id}
                   onChange={(e) => setCreateForm((f) => ({ ...f, document_id: e.target.value }))}
+                  className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                Nacionalidad (opcional)
+                <input
+                  type="text"
+                  placeholder="ej: Chilena, Argentina..."
+                  value={createForm.nationality}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, nationality: e.target.value }))}
                   className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
                 />
               </label>
@@ -845,6 +859,7 @@ export default function ReservasPage() {
                                     {p.is_primary && <Pill tone="neutral">Titular</Pill>}
                                     <span className="text-ink-faint">
                                       {p.document_id ? `RUT/pasaporte: ${p.document_id}` : "sin identificación registrada"}
+                                      {p.nationality ? ` · ${p.nationality}` : ""}
                                     </span>
                                     {dietTags.map((tag) => (
                                       <Pill key={tag} tone="olive">

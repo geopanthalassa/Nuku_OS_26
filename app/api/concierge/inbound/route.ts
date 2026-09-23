@@ -53,6 +53,15 @@ export async function POST(req: Request) {
     );
   }
 
+  // Guardia agregada 23/9/2026: llamadas con guest_message vacío (pings de
+  // webhook mal formados, verificaciones, etc.) creaban una conversación
+  // nueva y vacía en Bandeja cada vez — encontramos ~30 de estas acumuladas
+  // sin ningún mensaje real, que hacían la bandeja ilegible. Con esto, un
+  // mensaje en blanco simplemente no crea nada.
+  if (!guest_message.trim()) {
+    return NextResponse.json({ error: "guest_message no puede estar vacío." }, { status: 400 });
+  }
+
   try {
     await requireSessionOrSharedSecret(req, account_id);
   } catch (err) {

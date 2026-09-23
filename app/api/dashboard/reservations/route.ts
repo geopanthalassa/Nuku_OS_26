@@ -41,7 +41,7 @@ export async function GET(req: Request) {
     const { data, error } = await supabase
       .from("reservations")
       .select(
-        "id, check_in, check_out, status, channel, payment_status, promo_code, total_cents, stripe_payment_link, tour_interest, tour_notes, arrival_flight_time, arrival_flight_number, departure_flight_time, departure_flight_number, airport_transfer_notes, created_at, guests(full_name, email, phone), rooms(name, base_rate_cents), reservation_guests(id, full_name, document_id, is_primary, dietary_vegan, dietary_vegetarian, dietary_celiac, dietary_lactose_free, dietary_other, mobility_assistance, mobility_notes)"
+        "id, guest_id, check_in, check_out, status, channel, payment_status, promo_code, total_cents, stripe_payment_link, tour_interest, tour_notes, arrival_flight_time, arrival_flight_number, departure_flight_time, departure_flight_number, airport_transfer_notes, created_at, guests(full_name, email, phone), rooms(name, base_rate_cents), reservation_guests(id, full_name, document_id, nationality, is_primary, dietary_vegan, dietary_vegetarian, dietary_celiac, dietary_lactose_free, dietary_other, mobility_assistance, mobility_notes)"
       )
       .eq("account_id", accountId)
       .order("check_in", { ascending: true });
@@ -253,6 +253,7 @@ async function createReservation(accountId: string, payload: Record<string, unkn
     phone?: string;
     birth_date?: string;
     document_id?: string;
+    nationality?: string;
   };
   if (!guestInfo.full_name || typeof guestInfo.full_name !== "string" || !guestInfo.full_name.trim()) {
     return NextResponse.json({ error: "Falta guest.full_name." }, { status: 400 });
@@ -307,11 +308,16 @@ async function createReservation(accountId: string, payload: Record<string, unkn
       guestInfo.phone ? `phone.eq.${guestInfo.phone}` : null,
     ].filter(Boolean) as string[];
 
-    let existingGuest: { id: string; birth_date: string | null; document_id: string | null } | null = null;
+    let existingGuest: {
+      id: string;
+      birth_date: string | null;
+      document_id: string | null;
+      nationality: string | null;
+    } | null = null;
     if (filters.length > 0) {
       const { data } = await supabase
         .from("guests")
-        .select("id, birth_date, document_id")
+        .select("id, birth_date, document_id, nationality")
         .eq("account_id", accountId)
         .or(filters.join(","))
         .maybeSingle();
@@ -323,6 +329,7 @@ async function createReservation(accountId: string, payload: Record<string, unkn
       const patch: Record<string, string> = {};
       if (!existingGuest.birth_date && guestInfo.birth_date) patch.birth_date = guestInfo.birth_date;
       if (!existingGuest.document_id && guestInfo.document_id) patch.document_id = guestInfo.document_id;
+      if (!existingGuest.nationality && guestInfo.nationality) patch.nationality = guestInfo.nationality;
       if (Object.keys(patch).length > 0) {
         await supabase.from("guests").update(patch).eq("id", guestId);
       }
@@ -336,6 +343,7 @@ async function createReservation(accountId: string, payload: Record<string, unkn
           phone: guestInfo.phone || null,
           birth_date: guestInfo.birth_date || null,
           document_id: guestInfo.document_id || null,
+          nationality: guestInfo.nationality || null,
           source: channel,
         })
         .select("id")
@@ -418,6 +426,7 @@ async function createReservation(accountId: string, payload: Record<string, unkn
       reservation_id: reservation.id,
       full_name: guestInfo.full_name.trim(),
       document_id: guestInfo.document_id || null,
+      nationality: guestInfo.nationality || null,
       birth_date: guestInfo.birth_date || null,
       phone: guestInfo.phone || null,
       email: guestInfo.email || null,
