@@ -35,6 +35,19 @@ const WHATSAPP_NUMBER = "56977668288"; // +56 9 7766 8288, sin espacios ni +
 const CONTACT_EMAIL = "contacto@kuhanehostal.com";
 const MARKETING_SITE_URL = "https://kuhanehostal.com";
 
+// Los 6 tours reales que ofrece Kuhane (mismos nombres y slugs que
+// kuhane-live/lib/site-content.ts — Andre pidió, 23/9/2026, que acá se
+// desplieguen los tours que ofrecemos en vez de un solo campo de texto en
+// blanco, con "Otro" para lo que no está en la lista).
+const TOURS_OFERTADOS = [
+  { slug: "full-day-rapa-nui", nombre: "Full Day Rapa Nui" },
+  { slug: "half-day-punta-oeste", nombre: "Half Day Punta Oeste" },
+  { slug: "half-day-costa-sur", nombre: "Half Day Costa Sur" },
+  { slug: "half-day-isla-centro", nombre: "Half Day Isla Centro" },
+  { slug: "fullday-dream", nombre: "Fullday Dream" },
+  { slug: "fullday-explore", nombre: "Fullday Explore" },
+] as const;
+
 function formatDateLong(dateStr: string) {
   if (!dateStr) return "";
   const d = new Date(dateStr + "T00:00:00");
@@ -79,9 +92,10 @@ const EMPTY_GUEST: GuestForm = {
 //
 // El hostal se hace responsable de declarar a todas las personas que
 // ingresan a Rapa Nui en esta reserva, así que el formulario pide los
-// mismos datos (nombre, identificación, teléfono, correo, fecha de
-// nacimiento) para el titular y para cada acompañante — no solo para
-// quien reserva.
+// mismos datos (nombre, identificación, nacionalidad, teléfono, correo,
+// fecha de nacimiento) para el titular y para cada acompañante — no solo
+// para quien reserva. Todos esos son obligatorios (pedido de Andre,
+// 23/9/2026); lo único que puede quedar pendiente son los vuelos.
 export default function ReservarClient() {
   const params = useSearchParams();
   const [rooms, setRooms] = useState<Room[] | null>(null);
@@ -90,6 +104,8 @@ export default function ReservarClient() {
   const [guestForm, setGuestForm] = useState<GuestForm>(EMPTY_GUEST);
   const [companions, setCompanions] = useState<GuestForm[]>([]);
   const [wantsTours, setWantsTours] = useState(false);
+  const [selectedTourSlugs, setSelectedTourSlugs] = useState<string[]>([]);
+  const [otroTour, setOtroTour] = useState(false);
   const [tourNotes, setTourNotes] = useState("");
   const [arrivalFlightTime, setArrivalFlightTime] = useState("");
   const [arrivalFlightNumber, setArrivalFlightNumber] = useState("");
@@ -109,16 +125,28 @@ export default function ReservarClient() {
   const tourParam = params.get("tour") ?? "";
 
   // Tour agregado desde kuhane-web (/tours -> homepage -> acá). Precarga el
-  // check de "nos interesan tours" y deja el nombre del tour en las notas,
-  // sin pisar lo que la persona ya haya escrito. Pedido de Andre
-  // (22-23/9/2026): ningún precio de tour se muestra en ningún lado del
-  // sitio público — el equipo lo cotiza al confirmar la reserva.
+  // check de "nos interesan tours" y marca ese tour en la lista de abajo
+  // (23/9/2026: antes tiraba el slug crudo como texto libre — ahora, si el
+  // slug es uno de los 6 tours reales, se marca su checkbox directamente;
+  // si no lo reconoce, cae en "Otro" con el dato tal cual llegó). Pedido de
+  // Andre (22-23/9/2026): ningún precio de tour se muestra en ningún lado
+  // del sitio público — el equipo lo cotiza al confirmar la reserva.
   useEffect(() => {
     if (!tourParam) return;
     setWantsTours(true);
-    setTourNotes((prev) => (prev.trim() ? prev : `Tour agregado desde la página: ${tourParam}`));
+    const known = TOURS_OFERTADOS.find((t) => t.slug === tourParam);
+    if (known) {
+      setSelectedTourSlugs((prev) => (prev.includes(known.slug) ? prev : [...prev, known.slug]));
+    } else {
+      setOtroTour(true);
+      setTourNotes((prev) => (prev.trim() ? prev : `Tour agregado desde la página: ${tourParam}`));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tourParam]);
+
+  function toggleTourSlug(slug: string) {
+    setSelectedTourSlugs((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]));
+  }
 
   const nightCount = useMemo(() => {
     if (!checkin || !checkout) return null;
@@ -130,8 +158,18 @@ export default function ReservarClient() {
   const MIN_NIGHTS = 2;
   const stayTooShort = nightCount !== null && nightCount < MIN_NIGHTS;
 
+  // Pedido de Andre (23/9/2026): las habitaciones ya ocupadas para las
+  // fechas elegidas no deben aparecer como opción. check_in/check_out se
+  // mandan acá para que /api/public/rooms las excluya directamente — así
+  // nadie llega a elegir una habitación que de todas formas va a rechazar
+  // el envío del formulario.
   useEffect(() => {
-    fetch(`/api/public/rooms?account_id=${CURRENT_ACCOUNT_ID}`)
+    const qs = new URLSearchParams({ account_id: CURRENT_ACCOUNT_ID });
+    if (checkin && checkout) {
+      qs.set("check_in", checkin);
+      qs.set("check_out", checkout);
+    }
+    fetch(`/api/public/rooms?${qs.toString()}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.error) throw new Error(data.error);
@@ -139,7 +177,8 @@ export default function ReservarClient() {
         setCurrency(data.currency);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Error desconocido"));
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkin, checkout]);
 
   // El formulario pide los datos de TODOS los que van a ingresar a la isla
   // con esta reserva: el titular + un acompañante por cada persona extra
@@ -167,10 +206,33 @@ export default function ReservarClient() {
     setCompanions((prev) => prev.map((c, i) => (i === index ? { ...c, ...patch } : c)));
   }
 
-  const missingRequired =
-    !guestForm.full_name.trim() ||
-    !guestForm.document_id.trim() ||
-    companions.some((c) => !c.full_name.trim() || !c.document_id.trim());
+  // Pedido de Andre (23/9/2026): probó el formulario dejando nacionalidad,
+  // correo, teléfono y fecha de nacimiento en blanco y igual lo dejó
+  // confirmar la reserva — eso no debe pasar. Ahora toda la "información
+  // básica" (nombre, identificación, nacionalidad, correo, teléfono, fecha
+  // de nacimiento) es obligatoria para el titular y cada acompañante. Lo
+  // único que puede quedar pendiente son los vuelos — eso sigue opcional.
+  function missingBasicInfo(g: GuestForm) {
+    return (
+      !g.full_name.trim() ||
+      !g.document_id.trim() ||
+      !g.nationality.trim() ||
+      !g.email.trim() ||
+      !g.phone.trim() ||
+      !g.birth_date
+    );
+  }
+
+  const missingRequired = missingBasicInfo(guestForm) || companions.some((c) => missingBasicInfo(c));
+
+  // Junta los tours marcados (por nombre real) + el texto de "Otro" en una
+  // sola nota de texto, que es lo que espera /api/reservations/request.
+  function composeTourNotes() {
+    const chosen = TOURS_OFERTADOS.filter((t) => selectedTourSlugs.includes(t.slug)).map((t) => t.nombre);
+    const parts: string[] = [...chosen];
+    if (otroTour && tourNotes.trim()) parts.push(`Otro: ${tourNotes.trim()}`);
+    return parts.join("; ") || undefined;
+  }
 
   async function submitRequest() {
     if (!selectedRoomId || !checkin || !checkout || missingRequired || stayTooShort) return;
@@ -218,7 +280,7 @@ export default function ReservarClient() {
             mobility_notes: c.mobility_assistance ? c.mobility_notes.trim() || undefined : undefined,
           })),
           tour_interest: wantsTours,
-          tour_notes: wantsTours ? tourNotes.trim() || undefined : undefined,
+          tour_notes: wantsTours ? composeTourNotes() : undefined,
           arrival_flight_time: arrivalFlightTime || undefined,
           arrival_flight_number: arrivalFlightNumber.trim() || undefined,
           departure_flight_time: departureFlightTime || undefined,
@@ -294,14 +356,14 @@ export default function ReservarClient() {
           key={`${keyPrefix}-nationality`}
           value={value.nationality}
           onChange={(e) => onChange({ nationality: e.target.value })}
-          placeholder="Nacionalidad (ej: Chilena, Argentina...)"
+          placeholder="Nacionalidad (ej: Chilena, Argentina...) *"
           className="rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
         />
         <input
           key={`${keyPrefix}-email`}
           value={value.email}
           onChange={(e) => onChange({ email: e.target.value })}
-          placeholder="Email"
+          placeholder="Email *"
           type="email"
           className="rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
         />
@@ -310,7 +372,7 @@ export default function ReservarClient() {
             key={`${keyPrefix}-phone`}
             value={value.phone}
             onChange={(e) => onChange({ phone: e.target.value })}
-            placeholder="WhatsApp / teléfono, ej: +56 9 1234 5678"
+            placeholder="WhatsApp / teléfono, ej: +56 9 1234 5678 *"
             type="tel"
             className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
           />
@@ -319,16 +381,17 @@ export default function ReservarClient() {
           </p>
         </div>
         <div className="sm:col-span-2">
+          <label className="mb-1 block text-[11px] text-ink-faint" htmlFor={`${keyPrefix}-birth`}>
+            Fecha de nacimiento *
+          </label>
           <input
+            id={`${keyPrefix}-birth`}
             key={`${keyPrefix}-birth`}
             value={value.birth_date}
             onChange={(e) => onChange({ birth_date: e.target.value })}
             type="date"
             className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta sm:w-1/2"
           />
-          <p className="mt-1 text-[11px] text-ink-faint">
-            Fecha de nacimiento — opcional, para saludar con algo especial en el cumpleaños.
-          </p>
         </div>
 
         <div className="sm:col-span-2 border-t border-line pt-3">
@@ -447,6 +510,13 @@ export default function ReservarClient() {
           <p className="mt-4 rounded-lg border border-rust/30 bg-rust-soft px-4 py-3 text-sm text-rust">{error}</p>
         )}
 
+        {rooms !== null && rooms.length === 0 && checkin && checkout && (
+          <p className="mt-4 rounded-lg border border-line bg-surface px-4 py-3 text-sm text-ink-soft">
+            No quedan habitaciones disponibles para el {formatDateLong(checkin)} — {formatDateLong(checkout)}.
+            Prueba con otras fechas o escríbenos por WhatsApp para ver otras opciones.
+          </p>
+        )}
+
         <div className="mt-10 space-y-4">
           {displayRooms.map((room) => (
             <div
@@ -505,8 +575,17 @@ export default function ReservarClient() {
               </p>
               <p className="mt-1 text-xs text-ink-faint">
                 Kuhane te busca al llegar y te lleva de vuelta a la salida — si ya tienes el vuelo, déjanos el dato acá.
-                Si todavía no lo sabes, no hay problema: lo confirmamos más cerca de la fecha.
               </p>
+              {/* Pedido de Andre (23/9/2026): vuelos es el único dato que
+                  puede quedar pendiente — pero si queda en blanco debe
+                  quedar claro que igual lo vamos a pedir después, no que
+                  simplemente se olvidó. */}
+              {!arrivalFlightNumber.trim() && !departureFlightNumber.trim() && (
+                <p className="mt-1 text-xs text-ink-faint">
+                  ¿Todavía no tienes tus vuelos? No hay problema — te contactaremos unos días antes de tu llegada para
+                  conocer tus fechas y números de vuelo, así nos preparamos para tu visita.
+                </p>
+              )}
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <p className="mb-1 text-[11px] text-ink-faint">Llegada</p>
@@ -557,16 +636,57 @@ export default function ReservarClient() {
                   Nos interesa sumar tours o experiencias en la isla (guiados por Kuhane, buceo, cabalgatas, etc.)
                 </span>
               </label>
+              {/* 23/9/2026, pedido de Andre: en vez de un solo campo de
+                  texto en blanco, mostrar los tours reales que ofrece
+                  Kuhane (mismos 6 de kuhane-live/tours) para marcar, más
+                  "Otro" para buceo, cabalgatas u otra cosa que no esté en
+                  la lista. El equipo igual cotiza todo al confirmar. */}
               {wantsTours && (
-                <textarea
-                  value={tourNotes}
-                  onChange={(e) => setTourNotes(e.target.value)}
-                  placeholder="Cuéntanos qué te interesa (ej: tour a Rano Raraku, buceo un día, cabalgata) — el equipo te cotiza junto con la reserva."
-                  rows={3}
-                  className="mt-3 w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
-                />
+                <div className="mt-3 space-y-2">
+                  <p className="text-[11px] text-ink-faint">
+                    Marca los que te interesen — el equipo te cotiza junto con la reserva.
+                  </p>
+                  {TOURS_OFERTADOS.map((t) => (
+                    <label key={t.slug} className="flex items-center gap-2 text-sm text-ink">
+                      <input
+                        type="checkbox"
+                        checked={selectedTourSlugs.includes(t.slug)}
+                        onChange={() => toggleTourSlug(t.slug)}
+                        className="h-4 w-4 rounded border-line accent-terracotta"
+                      />
+                      {t.nombre}
+                    </label>
+                  ))}
+                  <label className="flex items-center gap-2 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      checked={otroTour}
+                      onChange={(e) => setOtroTour(e.target.checked)}
+                      className="h-4 w-4 rounded border-line accent-terracotta"
+                    />
+                    Otro
+                  </label>
+                  {otroTour && (
+                    <textarea
+                      value={tourNotes}
+                      onChange={(e) => setTourNotes(e.target.value)}
+                      placeholder="Cuéntanos qué te interesa (ej: buceo un día, cabalgata, galería de arte)"
+                      rows={2}
+                      className="w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-terracotta"
+                    />
+                  )}
+                </div>
               )}
             </div>
+
+            {/* Mismo mensaje de error que arriba, repetido acá — pedido
+                implícito de Andre (23/9/2026): probó una reserva que chocaba
+                con otra existente, el envío se bloqueó bien pero el aviso de
+                arriba de la página quedaba fuera de vista con el scroll
+                abajo, en el botón. */}
+            {error && (
+              <p className="rounded-lg border border-rust/30 bg-rust-soft px-4 py-3 text-sm text-rust">{error}</p>
+            )}
 
             <button
               onClick={submitRequest}
@@ -577,7 +697,8 @@ export default function ReservarClient() {
             </button>
             {missingRequired && (
               <p className="text-[11px] text-ink-faint">
-                Falta nombre y/o identificación de alguna persona de la reserva.
+                Falta completar algún dato básico (nombre, identificación, nacionalidad, correo, teléfono o fecha de
+                nacimiento) de alguna persona de la reserva. Los vuelos sí pueden quedar pendientes.
               </p>
             )}
             {stayTooShort && (
