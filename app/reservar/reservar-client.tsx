@@ -735,9 +735,17 @@ export default function ReservarClient() {
           además de un link para volver al sitio. Se puede cerrar sin perder
           la reserva (que ya quedó guardada) — el cuadro chico de arriba
           queda como respaldo con un link "Ver detalle" para reabrirla. */}
+      {/* 23/9/2026 (4): Andre reportó que en el celular el mensaje de
+          "reserva confirmada" no se veía completo — este overlay no tenía
+          overflow-y-auto, así que si el cuadro era más alto que la
+          pantalla (pasa seguido en celulares chicos, con el logo + textos
+          + botones), quedaba centrado pero cortado arriba y abajo sin
+          forma de hacer scroll para verlo entero. Se agrega scroll al
+          overlay y se alinea arriba en pantallas chicas (items-start) en
+          vez de forzar el centrado vertical, que es lo que lo cortaba. */}
       {sent && modalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 px-4 py-8 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/60 px-4 py-8 backdrop-blur-sm sm:items-center"
           onClick={() => setModalOpen(false)}
         >
           <div
