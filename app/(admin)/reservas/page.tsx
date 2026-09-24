@@ -679,7 +679,16 @@ export default function ReservasPage() {
                 {reservations.map((r) => {
                   const guest = one(r.guests);
                   const room = one(r.rooms);
-                  const totalCents = r.total_cents ?? room?.base_rate_cents ?? null;
+                  const stayNights = nights(r.check_in, r.check_out);
+                  // 24/9/2026: bug real encontrado por Andre — las reservas
+                  // que vienen de /reservar nunca traen total_cents (esa ruta
+                  // no lo calcula), así que este fallback caía directo en
+                  // room.base_rate_cents SIN multiplicar por las noches. Una
+                  // reserva de 2 noches en Calipso mostraba $302.315 (la
+                  // tarifa de 1 noche) en vez de $604.630 (el total real).
+                  const totalCents =
+                    r.total_cents ?? (room?.base_rate_cents != null && stayNights > 0 ? room.base_rate_cents * stayNights : null);
+                  const isEstimated = r.total_cents == null && totalCents != null;
                   const people = r.reservation_guests ?? [];
                   // 23/9/2026: mostrar el nombre declarado en ESTA reserva
                   // (reservation_guests, titular), no el del contacto
@@ -721,7 +730,16 @@ export default function ReservasPage() {
                       <td className="px-4 py-3">
                         <Pill tone={STATUS_TONE[r.status] ?? "neutral"}>{STATUS_LABEL[r.status] ?? r.status}</Pill>
                       </td>
-                      <td className="px-4 py-3 tabular-nums">{formatMoney(totalCents, currency)}</td>
+                      <td className="px-4 py-3 tabular-nums">
+                        {formatMoney(totalCents, currency)}
+                        {isEstimated && room?.base_rate_cents != null && (
+                          <p className="mt-0.5 text-[10px] font-normal text-ink-faint">
+                            {formatMoney(room.base_rate_cents, currency)} × {stayNights}{" "}
+                            {stayNights === 1 ? "noche" : "noches"}
+                            {r.promo_code ? " · sin cupón" : ""}
+                          </p>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-2">
                           {r.status === "requested" && (
