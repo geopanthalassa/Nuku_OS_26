@@ -778,10 +778,14 @@ export function reservationDocumentationEmail(params: {
         </td>
       </tr>
 
+      <!-- 23/9/2026 (8): Andre corrigió el tono de esta frase — decía "puede
+           solicitarse", sonando a que era opcional/eventual. Se lo van a
+           pedir sí o sí al embarcar hacia la isla, así que el texto ahora
+           lo dice directo, sin condicional. -->
       <tr>
         <td style="padding: 24px 32px 0;">
           <p style="margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.6; color: ${BRAND.stoneSoft};">
-            Este comprobante certifica tu reserva en Kuhane Etno-Hostal, registrado en Sernatur bajo el N&deg;${SERNATUR_NUMBER}. Puede solicitarse al embarcar hacia Isla de Pascua como parte de la documentaci&oacute;n de ingreso.
+            Este comprobante certifica tu reserva en Kuhane Etno-Hostal, registrado en Sernatur bajo el N&deg;${SERNATUR_NUMBER}. Te lo van a pedir al embarcar hacia Isla de Pascua, como parte de la documentaci&oacute;n de ingreso.
           </p>
         </td>
       </tr>
