@@ -124,6 +124,35 @@ export default function ReservarClient() {
   const promo = params.get("promo") ?? "";
   const tourParam = params.get("tour") ?? "";
 
+  // 24/9/2026: pedido de Andre — el huésped debe ver el descuento YA
+  // aplicado al reservar, no recién al pagar en el hostal ("valor a pagar,
+  // descuento del cupón, valor aproximado de hospedaje"). /api/public/promo
+  // ya existía (lo usa kuhane-web para el check verde al escribir el
+  // código) y ya devuelve discountType/discountValue — solo faltaba
+  // reusarlo acá para mostrar el desglose real.
+  const [promoInfo, setPromoInfo] = useState<{
+    discountType: "percent" | "fixed_amount";
+    discountValue: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!promo) {
+      setPromoInfo(null);
+      return;
+    }
+    const qs = new URLSearchParams({ code: promo, account_id: CURRENT_ACCOUNT_ID });
+    fetch(`/api/public/promo?${qs.toString()}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.valid) {
+          setPromoInfo({ discountType: data.discountType, discountValue: data.discountValue });
+        } else {
+          setPromoInfo(null);
+        }
+      })
+      .catch(() => setPromoInfo(null));
+  }, [promo]);
+
   // Tour agregado desde kuhane-web (/tours -> homepage -> acá). Precarga el
   // check de "nos interesan tours" y marca ese tour en la lista de abajo
   // (23/9/2026: antes tiraba el slug crudo como texto libre — ahora, si el
@@ -322,6 +351,19 @@ export default function ReservarClient() {
     return selectedRoom.rateCents * nightCount;
   }, [selectedRoom, nightCount]);
 
+  // Descuento del cupón ya aplicado (si hay uno válido) — igual fórmula que
+  // usa el panel interno al cobrar (computeSuggestedAmount en reservas/page.tsx),
+  // para que el número que ve el huésped acá coincida con el que ve el staff.
+  const discountCents = useMemo(() => {
+    if (totalCents == null || !promoInfo) return 0;
+    if (promoInfo.discountType === "percent") {
+      return Math.round((totalCents * promoInfo.discountValue) / 100);
+    }
+    return Math.round(promoInfo.discountValue * 100);
+  }, [totalCents, promoInfo]);
+
+  const totalWithDiscountCents = totalCents != null ? Math.max(0, totalCents - discountCents) : null;
+
   const whatsappHref = useMemo(() => {
     const text = `Hola! Acabo de solicitar una reserva en Kuhane Etno-Hostal${
       selectedRoom ? ` (${selectedRoom.name})` : ""
@@ -500,9 +542,8 @@ export default function ReservarClient() {
 
         {promo && (
           <p className="mt-3 text-xs text-ink-faint">
-            Código promocional <strong className="text-ink-soft">{promo}</strong> registrado — el equipo de Kuhane lo
-            valida y aplica el descuento al confirmar por WhatsApp o email (todavía no hay tarifas cargadas en el
-            sistema para aplicarlo automáticamente).
+            Código promocional <strong className="text-ink-soft">{promo}</strong> registrado — al elegir una
+            habitación vas a ver el descuento ya aplicado en el total.
           </p>
         )}
 
@@ -833,12 +874,62 @@ export default function ReservarClient() {
                 </p>
               )}
 
-              <div className="flex items-baseline justify-between gap-4 rounded-xl border border-line bg-paper-alt px-4 py-3">
-                <span className="text-sm text-ink-soft">
-                  Total estimado
-                  {nightCount ? ` · ${nightCount} ${nightCount === 1 ? "noche" : "noches"}` : ""}
-                </span>
-                <span className="font-mono-ui text-lg text-ink">{formatMoney(totalCents, currency)}</span>
+              <div className="rounded-xl border border-line bg-paper-alt px-4 py-3">
+                {/* 24/9/2026: desglose pedido por Andre — antes era un solo
+                    número y no quedaba claro de dónde salía ni si el cupón
+                    se había aplicado. Ahora se ve línea por línea: subtotal,
+                    descuento del cupón (si hay uno válido) y el aproximado
+                    de alojamiento a pagar. Los tours nunca están acá porque
+                    el sistema todavía no les carga precio — se cotizan y
+                    cobran aparte, al confirmar. */}
+                <div className="flex items-baseline justify-between gap-4">
+                  <span className="text-sm text-ink-soft">
+                    Alojamiento
+                    {nightCount ? ` · ${nightCount} ${nightCount === 1 ? "noche" : "noches"}` : ""}
+                  </span>
+                  <span
+                    className={`font-mono-ui text-ink ${promoInfo ? "text-sm text-ink-faint line-through" : "text-lg"}`}
+                  >
+                    {formatMoney(totalCents, currency)}
+                  </span>
+                </div>
+                {selectedRoom?.rateCents != null && nightCount ? (
+                  <p className="mt-1 text-[11px] text-ink-faint">
+                    {formatMoney(selectedRoom.rateCents, currency)} / noche × {nightCount}{" "}
+                    {nightCount === 1 ? "noche" : "noches"}
+                  </p>
+                ) : null}
+
+                {promoInfo && totalCents != null && (
+                  <div className="mt-2 flex items-baseline justify-between gap-4 border-t border-line pt-2">
+                    <span className="text-sm text-terracotta">
+                      Descuento {promo}
+                      {promoInfo.discountType === "percent" ? ` (${promoInfo.discountValue}%)` : ""}
+                    </span>
+                    <span className="font-mono-ui text-sm text-terracotta">
+                      −{formatMoney(discountCents, currency)}
+                    </span>
+                  </div>
+                )}
+
+                <div className="mt-2 flex items-baseline justify-between gap-4 border-t border-line pt-2">
+                  <span className="text-sm font-medium text-ink-soft">
+                    {promoInfo ? "Total aproximado alojamiento" : "Total estimado"}
+                  </span>
+                  <span className="font-mono-ui text-lg text-ink">
+                    {formatMoney(totalWithDiscountCents, currency)}
+                  </span>
+                </div>
+
+                <p className="mt-2 text-[11px] text-ink-faint">
+                  {promoInfo
+                    ? "Descuento ya aplicado — el equipo de Kuhane confirma el mismo monto al cobrar en el hostal."
+                    : promo
+                      ? `El código ${promo} no se pudo validar — el equipo de Kuhane lo revisa al confirmar tu reserva.`
+                      : null}
+                  {(promoInfo || promo) && wantsTours ? " " : null}
+                  {wantsTours ? "Los tours se cotizan y abonan aparte, no están incluidos en este monto." : null}
+                </p>
               </div>
 
               <p className="text-sm leading-relaxed text-ink-soft">
