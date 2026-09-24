@@ -561,12 +561,22 @@ export function reservationConfirmationEmail(params: {
         </td>
       </tr>
 
+      <!-- 24/9/2026: Andre pidió que esta lista empiece con el recibimiento
+           con collar de flores (antes no estaba, y el orden importa — debe
+           ir primero, es lo primero que vive el huésped). También corrigió
+           el desayuno: no es "continental", es "abundante y variado" —
+           mismo cambio en site-content.ts/en.ts (kuhane-live). -->
       <tr>
         <td style="padding: 14px 32px 0;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
             <tr>
               <td style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.55; color: ${BRAND.stoneSoft}; padding: 3px 0;">
-                <span style="color: ${BRAND.teal};">&#10003;</span>&nbsp; Desayuno continental incluido
+                <span style="color: ${BRAND.teal};">&#10003;</span>&nbsp; Recibimiento con collar de flores
+              </td>
+            </tr>
+            <tr>
+              <td style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.55; color: ${BRAND.stoneSoft}; padding: 3px 0;">
+                <span style="color: ${BRAND.teal};">&#10003;</span>&nbsp; Desayuno abundante y variado incluido
               </td>
             </tr>
             <tr>
