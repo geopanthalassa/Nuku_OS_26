@@ -43,11 +43,38 @@ export async function POST(req: Request) {
     if (reservationId && accountId) {
       try {
         const supabase = getSupabaseServerClient();
-        await supabase
+        const { data: updated } = await supabase
           .from("reservations")
           .update({ payment_status: "paid" })
           .eq("id", reservationId)
-          .eq("account_id", accountId);
+          .eq("account_id", accountId)
+          .select("promo_code")
+          .maybeSingle();
+
+        // 24/9/2026: pedido de Andre — el contador "usos" de un cupón
+        // (Cupones → 0/1 usos) nunca subía en ningún lado del código, así
+        // que un cupón de "1 uso" en la práctica no tenía límite real. Acá
+        // es el único lugar donde se confirma que un pago con cupón
+        // realmente se cobró, así que es el punto correcto para sumar el
+        // uso. Lectura + escritura (no un incremento atómico) porque los
+        // pagos de un mismo cupón no llegan en simultáneo para un hostal de
+        // este tamaño — si eso cambia algún día, esto debería pasar a una
+        // función de base de datos con incremento atómico.
+        if (updated?.promo_code) {
+          const { data: promo } = await supabase
+            .from("promo_codes")
+            .select("uses_count")
+            .eq("account_id", accountId)
+            .eq("code", updated.promo_code)
+            .maybeSingle();
+          if (promo) {
+            await supabase
+              .from("promo_codes")
+              .update({ uses_count: promo.uses_count + 1 })
+              .eq("account_id", accountId)
+              .eq("code", updated.promo_code);
+          }
+        }
       } catch (err) {
         console.error("[api/payments/webhook] No se pudo marcar la reserva como pagada", err);
       }
