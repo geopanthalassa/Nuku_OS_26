@@ -52,6 +52,13 @@ export default function BandejaPage() {
   const testExternalId = useMemo(() => (accountId ? `panel-${accountId}` : null), [accountId]);
   const [conversations, setConversations] = useState<ConversationSummary[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // 25/9/2026: pedido de Andre — en el celular, la lista (ancho fijo) y el
+  // panel de la conversación (al lado) ya no entraban juntos: el panel
+  // quedaba reducido a una tira angosta, imposible de leer. Abajo de "lg"
+  // se muestra UNO de los dos a la vez — la lista, o el panel — y este
+  // estado decide cuál. Arriba de "lg" los dos se ven siempre juntos, como
+  // antes, y este estado no afecta nada ahí.
+  const [mobileShowDetail, setMobileShowDetail] = useState(false);
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -145,10 +152,24 @@ export default function BandejaPage() {
   return (
     <>
       <TopBar account={account} title="Bandeja" />
-      <main className="flex flex-1 gap-5 overflow-hidden p-6">
-        <div className="flex w-72 shrink-0 flex-col overflow-hidden rounded-xl border border-line bg-surface">
-          <div className="border-b border-line px-4 py-3 text-xs uppercase tracking-wide text-ink-faint">
+      <main className="flex flex-1 flex-col gap-4 overflow-hidden p-4 lg:flex-row lg:gap-5 lg:p-6">
+        <div
+          className={`${
+            mobileShowDetail ? "hidden" : "flex"
+          } w-full shrink-0 flex-col overflow-hidden rounded-xl border border-line bg-surface lg:flex lg:w-72`}
+        >
+          <div className="flex items-center justify-between border-b border-line px-4 py-3 text-xs uppercase tracking-wide text-ink-faint">
             Conversaciones
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedId(null);
+                setMobileShowDetail(true);
+              }}
+              className="normal-case tracking-normal text-terracotta underline decoration-dotted lg:hidden"
+            >
+              Probar el Concierge
+            </button>
           </div>
           <div className="flex-1 overflow-y-auto">
             {conversations === null && <p className="p-4 text-sm text-ink-faint">Cargando…</p>}
@@ -160,7 +181,10 @@ export default function BandejaPage() {
             {conversations?.map((c) => (
               <button
                 key={c.id}
-                onClick={() => setSelectedId(c.id)}
+                onClick={() => {
+                  setSelectedId(c.id);
+                  setMobileShowDetail(true);
+                }}
                 className={`block w-full border-b border-line px-4 py-3 text-left transition-colors ${
                   selectedId === c.id ? "bg-paper-alt" : "hover:bg-paper-alt"
                 }`}
@@ -176,8 +200,20 @@ export default function BandejaPage() {
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-line bg-surface">
-          <div className="border-b border-line px-4 py-3 text-xs uppercase tracking-wide text-ink-faint">
+        <div
+          className={`${
+            mobileShowDetail ? "flex" : "hidden"
+          } flex-1 flex-col overflow-hidden rounded-xl border border-line bg-surface lg:flex`}
+        >
+          <div className="flex items-center gap-2 border-b border-line px-4 py-3 text-xs uppercase tracking-wide text-ink-faint">
+            <button
+              type="button"
+              onClick={() => setMobileShowDetail(false)}
+              aria-label="Volver a la lista"
+              className="-ml-1 text-sm normal-case tracking-normal text-ink-soft lg:hidden"
+            >
+              ← Volver
+            </button>
             {selectedId ? "Hilo de la conversación" : "Probar el Concierge IA"}
           </div>
 
