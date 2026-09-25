@@ -63,6 +63,14 @@ const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const MS_DAY = 86400000;
 const DAY_COL_PX = 34;
 const LABEL_COL_PX = 190;
+// 25/9/2026: pedido de Andre viendo esto en el celular — la columna de
+// habitación se comía tanto ancho que apenas entraban 2-3 días antes de
+// tener que hacer scroll ("los nombres de las habitaciones ocupan
+// demasiado espacio ... se pierde información"). En celular angosto se usa
+// una columna de etiqueta y de día más chicas, para que entren más días de
+// una — de "sm" (640px) para arriba queda como estaba.
+const DAY_COL_PX_NARROW = 26;
+const LABEL_COL_PX_NARROW = 92;
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -102,6 +110,15 @@ export default function DisponibilidadPage() {
     const now = new Date();
     return { y: now.getFullYear(), m: now.getMonth() };
   });
+  const [isNarrow, setIsNarrow] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 640px)");
+    const update = () => setIsNarrow(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -176,7 +193,9 @@ export default function DisponibilidadPage() {
     return map;
   }, [reservations, monthStartMs, monthEndExclusiveMs]);
 
-  const gridTemplateColumns = `${LABEL_COL_PX}px repeat(${totalDays}, ${DAY_COL_PX}px)`;
+  const labelColPx = isNarrow ? LABEL_COL_PX_NARROW : LABEL_COL_PX;
+  const dayColPx = isNarrow ? DAY_COL_PX_NARROW : DAY_COL_PX;
+  const gridTemplateColumns = `${labelColPx}px repeat(${totalDays}, ${dayColPx}px)`;
   const today = todayKey();
 
   return (
@@ -239,14 +258,14 @@ export default function DisponibilidadPage() {
             <div className="overflow-x-auto">
               <div
                 className="inline-grid"
-                style={{ gridTemplateColumns, gridAutoRows: `${DAY_COL_PX + 10}px` }}
+                style={{ gridTemplateColumns, gridAutoRows: `${dayColPx + 10}px` }}
               >
                 {/* fila de encabezado: número de día por columna */}
                 <div
-                  className="sticky left-0 z-20 flex items-end border-b border-r border-line bg-surface px-3 pb-2"
+                  className="sticky left-0 z-20 flex items-end border-b border-r border-line bg-surface px-2 pb-2 sm:px-3"
                   style={{ gridColumn: 1, gridRow: 1 }}
                 >
-                  <span className="text-[11px] uppercase tracking-wide text-ink-faint">Habitación</span>
+                  <span className="truncate text-[11px] uppercase tracking-wide text-ink-faint">Habitación</span>
                 </div>
                 {Array.from({ length: totalDays }).map((_, i) => {
                   const key = dateKey(y, m, i + 1);
@@ -274,11 +293,11 @@ export default function DisponibilidadPage() {
                   return (
                     <Fragment key={room.id}>
                       <div
-                        className="sticky left-0 z-20 flex flex-col justify-center border-b border-r border-line bg-surface px-3"
+                        className="sticky left-0 z-20 flex flex-col justify-center border-b border-r border-line bg-surface px-2 sm:px-3"
                         style={{ gridColumn: 1, gridRow: rIdx + 2 }}
                       >
-                        <span className="truncate text-sm font-medium text-ink">{room.name}</span>
-                        <span className="text-[11px] text-ink-faint">{room.capacity} pax</span>
+                        <span className="truncate text-[13px] font-medium text-ink sm:text-sm">{room.name}</span>
+                        <span className="truncate text-[11px] text-ink-faint">{room.capacity} pax</span>
                       </div>
 
                       {Array.from({ length: totalDays }).map((_, i) => {
