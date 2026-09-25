@@ -9,6 +9,7 @@ import { useCurrentAccount } from "@/lib/account-context";
 const NAV = [
   { href: "/dashboard", label: "Resumen" },
   { href: "/reservas", label: "Reservas" },
+  { href: "/disponibilidad", label: "Disponibilidad" },
   { href: "/calendario", label: "Calendario" },
   { href: "/desayunos", label: "Desayunos" },
   { href: "/huespedes", label: "Huéspedes" },
