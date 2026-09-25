@@ -226,14 +226,19 @@ export default function CalendarioPage() {
       <div className="rounded-lg border border-line bg-surface p-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            {/* 23/9/2026: nombre declarado en esta reserva (primary), no el
-                del contacto reutilizado (guest.full_name) — mismo arreglo
-                que en la lista de Reservas, ver lib/guest-match.ts. */}
-            <p className="text-sm font-medium text-ink">{primary?.full_name ?? guest?.full_name ?? "—"}</p>
+            {/* 25/9/2026: pedido de Andre — que se vea primero la
+                HABITACIÓN y después el pasajero (antes era al revés), y que
+                el color diga si llega o se va, igual que las etiquetas del
+                cuadrito del día. 23/9/2026: nombre declarado en esta reserva
+                (primary), no el del contacto reutilizado (guest.full_name)
+                — mismo arreglo que en la lista de Reservas, ver
+                lib/guest-match.ts. */}
+            <p className="text-sm font-medium">
+              <span className={kind === "arrival" ? "text-sage" : "text-rust"}>{room?.name ?? "—"}</span>
+              <span className="text-ink"> — {primary?.full_name ?? guest?.full_name ?? "—"}</span>
+            </p>
             <p className="text-xs text-ink-faint">
-              {room?.name ?? "—"}
-              {guest?.phone ? ` · ${guest.phone}` : ""}
-              {primary?.document_id ? ` · ${primary.document_id}` : ""}
+              {[guest?.phone, primary?.document_id].filter(Boolean).join(" · ") || "Sin más datos"}
             </p>
           </div>
           <Pill tone={STATUS_TONE[r.status] ?? "neutral"}>{STATUS_LABEL[r.status] ?? r.status}</Pill>
@@ -370,8 +375,6 @@ export default function CalendarioPage() {
               {grid.map((cell, i) => {
                 if (!cell.key) return <div key={i} />;
                 const info = byDay.get(cell.key);
-                const arrivalCount = info?.arrivals.length ?? 0;
-                const departureCount = info?.departures.length ?? 0;
                 const isSelected = selected === cell.key;
                 const isToday = cell.key === todayKey();
                 return (
@@ -388,24 +391,31 @@ export default function CalendarioPage() {
                     }`}
                   >
                     <span className="font-mono-ui text-xs tabular-nums text-ink-soft">{cell.day}</span>
-                    {/* 23/9/2026 (4): Andre reportó que casi no se veían estas
-                        marcas de llegada/salida — el problema real era de
-                        contraste, no de tamaño: un fondo pastel (bg-sage-soft
-                        / bg-rust-soft) sobre una celda que también es clara
-                        se pierde casi por completo. Se cambia a fondo sólido
-                        + texto blanco (mismo criterio que un chip de estado),
-                        más grande y con un poco más de padding. */}
-                    <div className="flex flex-wrap gap-1">
-                      {arrivalCount > 0 && (
-                        <span className="flex items-center gap-0.5 rounded-full bg-sage px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">
-                          ↓{arrivalCount}
+                    {/* 25/9/2026: pedido de Andre — que en vez de un contador
+                        (↓3) se vea DIRECTAMENTE qué habitación llega o se va
+                        ese día, en verde para llegada y en rojo para salida.
+                        Mismo criterio de contraste del 23/9 (fondo sólido +
+                        texto blanco), ahora con el nombre real en vez de un
+                        número. */}
+                    <div className="flex w-full flex-col gap-1">
+                      {(info?.arrivals ?? []).map((r) => (
+                        <span
+                          key={`arr-${r.id}`}
+                          title={`Llega: ${one(r.rooms)?.name ?? "—"}`}
+                          className="block w-full truncate rounded bg-sage px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                        >
+                          {one(r.rooms)?.name ?? "—"}
                         </span>
-                      )}
-                      {departureCount > 0 && (
-                        <span className="flex items-center gap-0.5 rounded-full bg-rust px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">
-                          ↑{departureCount}
+                      ))}
+                      {(info?.departures ?? []).map((r) => (
+                        <span
+                          key={`dep-${r.id}`}
+                          title={`Se va: ${one(r.rooms)?.name ?? "—"}`}
+                          className="block w-full truncate rounded bg-rust px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                        >
+                          {one(r.rooms)?.name ?? "—"}
                         </span>
-                      )}
+                      ))}
                     </div>
                   </button>
                 );
@@ -413,11 +423,11 @@ export default function CalendarioPage() {
             </div>
 
             <div className="mt-3 flex gap-4 px-1 text-[11px] text-ink-faint">
-              <span>
-                <span className="mr-1 rounded-full bg-sage px-1.5 py-0.5 text-white">↓</span> llegan
+              <span className="flex items-center gap-1.5">
+                <span className="h-3 w-3 rounded bg-sage" /> Llegan
               </span>
-              <span>
-                <span className="mr-1 rounded-full bg-rust px-1.5 py-0.5 text-white">↑</span> se van
+              <span className="flex items-center gap-1.5">
+                <span className="h-3 w-3 rounded bg-rust" /> Se van
               </span>
             </div>
           </div>
