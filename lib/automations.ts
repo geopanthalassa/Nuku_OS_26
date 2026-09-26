@@ -12,8 +12,10 @@ import { getSupabaseServerClient } from "./supabase/server";
 // decide QUÉ texto mandar, y respeta el interruptor on/off de cada cuenta.
 
 const DEFAULT_TEMPLATES: Record<string, string> = {
+  // 26/9/2026: pedido de Andre — el saludo del mensaje de bienvenida pasa de
+  // "¡Hola!" a "Iorana" (saludo en rapa nui), el resto del texto queda igual.
   bienvenida_reserva:
-    "¡Hola {{guest_name}}! Tu reserva en {{account_name}} está confirmada para el {{check_in}}. Cualquier cosa que necesites antes de llegar, escríbenos por acá.",
+    "Iorana {{guest_name}}! Tu reserva en {{account_name}} está confirmada para el {{check_in}}. Cualquier cosa que necesites antes de llegar, escríbenos por acá.",
   solicitud_resena:
     "¡Hola {{guest_name}}! Esperamos que hayas disfrutado tu estadía en {{account_name}}. ¿Nos dejarías una reseña? Significa mucho para nosotros.",
   recordatorio_pago:
