@@ -46,6 +46,7 @@ type Reservation = {
   promo_code: string | null;
   total_cents: number | null;
   guest_count: number | null;
+  internal_notes: string | null;
   guests: { full_name: string; email: string | null; phone: string | null } | { full_name: string; email: string | null; phone: string | null }[] | null;
   rooms: { name: string; base_rate_cents: number | null } | { name: string; base_rate_cents: number | null }[] | null;
   reservation_guests:
@@ -54,6 +55,9 @@ type Reservation = {
         full_name: string;
         document_id: string | null;
         nationality: string | null;
+        birth_date: string | null;
+        phone: string | null;
+        email: string | null;
         is_primary: boolean;
         dietary_vegan: boolean;
         dietary_vegetarian: boolean;
@@ -66,6 +70,11 @@ type Reservation = {
     | null;
   tour_interest: boolean;
   tour_notes: string | null;
+  arrival_flight_time: string | null;
+  arrival_flight_number: string | null;
+  departure_flight_time: string | null;
+  departure_flight_number: string | null;
+  airport_transfer_notes: string | null;
   stripe_payment_link?: string | null;
 };
 
@@ -142,6 +151,60 @@ const EMPTY_CREATE_FORM = {
   tour_notes: "",
 };
 
+// 26/9/2026: pedido de Andre — botón "Editar" para toda la ficha de una
+// reserva ya guardada (antes solo se podía cambiar el estado, la habitación
+// y los datos de vuelo, cada uno por su lado). Este formulario cubre todos
+// los campos de la reserva; los datos de cada huésped se editan aparte, en
+// editGuests, porque viven en otra tabla (reservation_guests).
+const EMPTY_EDIT_FORM = {
+  room_id: "",
+  guest_count: "",
+  check_in: "",
+  check_out: "",
+  channel: "phone",
+  status: "confirmed",
+  payment_status: "pending",
+  total_cents: "",
+  promo_code: "",
+  tour_interest: false,
+  tour_notes: "",
+  arrival_flight_time: "",
+  arrival_flight_number: "",
+  departure_flight_time: "",
+  departure_flight_number: "",
+  airport_transfer_notes: "",
+  internal_notes: "",
+};
+
+// Todos los canales posibles en el selector de "Editar" — a diferencia de
+// "Nueva reserva", acá también puede aparecer "direct" (reservas que llegaron
+// solas por /reservar), así que se agrega solo para mostrarlo correctamente.
+const ALL_CHANNEL_LABELS: Record<string, string> = {
+  direct: "Directo (reserva pública)",
+  ...MANUAL_CHANNEL_LABELS,
+};
+
+// Una fila de huésped en edición. `key` es estable para React aunque todavía
+// no tenga `id` (huésped recién agregado, sin guardar). Sin `id` => al
+// guardar se CREA un reservation_guests nuevo; con `id` => se actualiza.
+type EditGuestRow = {
+  key: string;
+  id?: string;
+  full_name: string;
+  document_id: string;
+  nationality: string;
+  birth_date: string;
+  phone: string;
+  email: string;
+  is_primary: boolean;
+};
+
+let guestRowCounter = 0;
+function newGuestRowKey() {
+  guestRowCounter += 1;
+  return `new-${guestRowCounter}`;
+}
+
 export default function ReservasPage() {
   const { accountId, accountName } = useCurrentAccount();
   const account = { ...demoWorkspace.account, name: accountName ?? demoWorkspace.account.name };
@@ -181,6 +244,13 @@ export default function ReservasPage() {
   const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+
+  // Editar ficha completa — ver EMPTY_EDIT_FORM más arriba.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState(EMPTY_EDIT_FORM);
+  const [editGuests, setEditGuests] = useState<EditGuestRow[]>([]);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   async function load() {
     if (!accountId) return;
@@ -412,6 +482,208 @@ export default function ReservasPage() {
       setCreateError(err instanceof Error ? err.message : "No se pudo crear la reserva.");
     } finally {
       setCreating(false);
+    }
+  }
+
+  // Abre la ficha completa de edición de una reserva ya guardada, con todo
+  // precargado: fechas, habitación, canal, estado, pago, monto, cupón,
+  // tours, vuelos, comentarios, y la lista de huéspedes ya cargados. Si
+  // todavía no hay ningún huésped registrado (reserva vieja, o cargada antes
+  // de este cambio), arranca con una fila vacía para el titular en vez de
+  // dejar la lista en blanco.
+  function openEdit(r: Reservation) {
+    setEditForm({
+      room_id: r.room_id ?? "",
+      guest_count: r.guest_count != null ? String(r.guest_count) : "",
+      check_in: r.check_in,
+      check_out: r.check_out,
+      channel: r.channel,
+      status: r.status,
+      payment_status: r.payment_status,
+      total_cents: r.total_cents != null ? String(r.total_cents / 100) : "",
+      promo_code: r.promo_code ?? "",
+      tour_interest: r.tour_interest,
+      tour_notes: r.tour_notes ?? "",
+      arrival_flight_time: (r.arrival_flight_time ?? "").slice(0, 5),
+      arrival_flight_number: r.arrival_flight_number ?? "",
+      departure_flight_time: (r.departure_flight_time ?? "").slice(0, 5),
+      departure_flight_number: r.departure_flight_number ?? "",
+      airport_transfer_notes: r.airport_transfer_notes ?? "",
+      internal_notes: r.internal_notes ?? "",
+    });
+
+    const people = r.reservation_guests ?? [];
+    if (people.length > 0) {
+      setEditGuests(
+        people.map((p) => ({
+          key: p.id,
+          id: p.id,
+          full_name: p.full_name,
+          document_id: p.document_id ?? "",
+          nationality: p.nationality ?? "",
+          birth_date: p.birth_date ?? "",
+          phone: p.phone ?? "",
+          email: p.email ?? "",
+          is_primary: p.is_primary,
+        }))
+      );
+    } else {
+      // Sin nadie cargado todavía: arrancar con una fila para el titular,
+      // usando lo que haya en el contacto (guests) como punto de partida.
+      const guest = one(r.guests);
+      setEditGuests([
+        {
+          key: newGuestRowKey(),
+          full_name: guest?.full_name ?? "",
+          document_id: "",
+          nationality: "",
+          birth_date: "",
+          phone: guest?.phone ?? "",
+          email: guest?.email ?? "",
+          is_primary: true,
+        },
+      ]);
+    }
+
+    setEditError(null);
+    setExpandedId(r.id);
+    setEditingId(r.id);
+  }
+
+  function closeEdit() {
+    setEditingId(null);
+    setEditError(null);
+  }
+
+  function addGuestRow() {
+    setEditGuests((prev) => [
+      ...prev,
+      {
+        key: newGuestRowKey(),
+        full_name: "",
+        document_id: "",
+        nationality: "",
+        birth_date: "",
+        phone: "",
+        email: "",
+        is_primary: false,
+      },
+    ]);
+  }
+
+  function removeGuestRow(key: string) {
+    // Solo se puede quitar una fila recién agregada (sin id todavía) — una
+    // ya guardada no tiene forma de borrarse desde acá.
+    setEditGuests((prev) => prev.filter((g) => g.key !== key || g.id));
+  }
+
+  function updateGuestRow(key: string, patch: Partial<EditGuestRow>) {
+    setEditGuests((prev) => prev.map((g) => (g.key === key ? { ...g, ...patch } : g)));
+  }
+
+  async function saveEdit(r: Reservation) {
+    if (!accountId) return;
+
+    if (!editForm.check_in || !editForm.check_out) {
+      setEditError("Falta el check-in o el check-out.");
+      return;
+    }
+    if (editForm.check_out <= editForm.check_in) {
+      setEditError("El check-out debe ser posterior al check-in.");
+      return;
+    }
+
+    let totalCents: number | null = null;
+    if (editForm.total_cents.trim()) {
+      const pesos = Number(editForm.total_cents.replace(/[^0-9.]/g, ""));
+      if (!Number.isFinite(pesos) || pesos < 0) {
+        setEditError("El monto ingresado no es válido.");
+        return;
+      }
+      totalCents = Math.round(pesos * 100);
+    }
+
+    let guestCount: number | null = null;
+    if (editForm.guest_count.trim()) {
+      const n = Number(editForm.guest_count);
+      if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+        setEditError("La cantidad de huéspedes debe ser un número entero mayor a 0.");
+        return;
+      }
+      guestCount = n;
+    }
+
+    setSavingEdit(true);
+    setEditError(null);
+    try {
+      const res = await fetch("/api/dashboard/reservations", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(await authHeader()) },
+        body: JSON.stringify({
+          id: r.id,
+          room_id: editForm.room_id || null,
+          guest_count: guestCount,
+          check_in: editForm.check_in,
+          check_out: editForm.check_out,
+          channel: editForm.channel,
+          status: editForm.status,
+          payment_status: editForm.payment_status,
+          total_cents: totalCents,
+          promo_code: editForm.promo_code || "",
+          tour_interest: editForm.tour_interest,
+          tour_notes: editForm.tour_notes || "",
+          arrival_flight_time: editForm.arrival_flight_time || "",
+          arrival_flight_number: editForm.arrival_flight_number || "",
+          departure_flight_time: editForm.departure_flight_time || "",
+          departure_flight_number: editForm.departure_flight_number || "",
+          airport_transfer_notes: editForm.airport_transfer_notes || "",
+          internal_notes: editForm.internal_notes || "",
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      // Los huéspedes se guardan aparte (viven en reservation_guests, no en
+      // reservations) — uno por uno, en orden, para poder señalar
+      // exactamente cuál falló si algo sale mal.
+      for (const g of editGuests) {
+        if (!g.id && !g.full_name.trim()) continue; // fila agregada y dejada en blanco: se ignora, no es error
+        const guestRes = await fetch("/api/dashboard/reservation-guests", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...(await authHeader()) },
+          body: JSON.stringify(
+            g.id
+              ? {
+                  id: g.id,
+                  full_name: g.full_name,
+                  document_id: g.document_id,
+                  nationality: g.nationality,
+                  birth_date: g.birth_date,
+                  phone: g.phone,
+                  email: g.email,
+                }
+              : {
+                  reservation_id: r.id,
+                  full_name: g.full_name,
+                  document_id: g.document_id || undefined,
+                  nationality: g.nationality || undefined,
+                  birth_date: g.birth_date || undefined,
+                  phone: g.phone || undefined,
+                  email: g.email || undefined,
+                  is_primary: g.is_primary,
+                }
+          ),
+        });
+        const guestData = await guestRes.json();
+        if (guestData.error) throw new Error(`Huésped "${g.full_name || "(sin nombre)"}": ${guestData.error}`);
+      }
+
+      setEditingId(null);
+      await load();
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "No se pudo guardar la reserva.");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -874,6 +1146,13 @@ export default function ReservasPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => (editingId === r.id ? closeEdit() : openEdit(r))}
+                            className="rounded-lg border border-line px-3 py-1.5 text-xs text-ink-soft transition-colors hover:border-terracotta/40 hover:text-terracotta"
+                          >
+                            {editingId === r.id ? "Cerrar edición" : "Editar"}
+                          </button>
                           {r.status === "requested" && (
                             <>
                               <button
@@ -987,59 +1266,407 @@ export default function ReservasPage() {
                     {isExpanded && (
                       <tr className="border-b border-line bg-paper-alt last:border-0">
                         <td colSpan={9} className="px-4 py-4">
-                          <p className="font-mono-ui text-[11px] uppercase tracking-widest text-ink-faint">
-                            Personas que ingresan a la isla con esta reserva
-                          </p>
-                          {people.length === 0 ? (
-                            <p className="mt-2 text-xs text-ink-faint">
-                              {r.guest_count != null
-                                ? `Todavía no se cargaron los datos de cada persona — se anotó que serían ${r.guest_count} ${r.guest_count === 1 ? "huésped" : "huéspedes"} en total (solo el titular quedó registrado por ahora).`
-                                : "Reserva antigua sin este detalle todavía — solo se guardó el nombre del titular."}
-                            </p>
-                          ) : (
-                            <ul className="mt-2 space-y-1.5">
-                              {people.map((p, i) => {
-                                const dietTags = [
-                                  p.dietary_vegan && "Vegano",
-                                  p.dietary_vegetarian && "Vegetariano",
-                                  p.dietary_celiac && "Celíaco",
-                                  p.dietary_lactose_free && "Sin lactosa",
-                                ].filter(Boolean) as string[];
-                                return (
-                                  <li key={p.id ?? i} className="flex flex-wrap items-center gap-1.5 text-sm text-ink">
-                                    <span className="font-medium">{p.full_name}</span>
-                                    {p.is_primary && <Pill tone="neutral">Titular</Pill>}
-                                    <span className="text-ink-faint">
-                                      {p.document_id ? `RUT/pasaporte: ${p.document_id}` : "sin identificación registrada"}
-                                      {p.nationality ? ` · ${p.nationality}` : ""}
-                                    </span>
-                                    {dietTags.map((tag) => (
-                                      <Pill key={tag} tone="olive">
-                                        {tag}
-                                      </Pill>
+                          {editingId === r.id ? (
+                            <div className="max-w-3xl space-y-4">
+                              <p className="font-mono-ui text-[11px] uppercase tracking-widest text-ink-faint">
+                                Editar reserva completa
+                              </p>
+
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                  Habitación
+                                  <select
+                                    value={editForm.room_id}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, room_id: e.target.value }))}
+                                    className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                  >
+                                    <option value="">Todavía no se sabe — asignar después</option>
+                                    {(rooms ?? []).map((room) => (
+                                      <option key={room.id} value={room.id}>
+                                        {room.name}
+                                      </option>
                                     ))}
-                                    {p.dietary_other && (
-                                      <span className="text-xs text-terracotta">· {p.dietary_other}</span>
-                                    )}
-                                    {p.mobility_assistance && (
-                                      <Pill tone="rust">
-                                        Movilidad{p.mobility_notes ? `: ${p.mobility_notes}` : ""}
-                                      </Pill>
-                                    )}
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          )}
-                          {r.tour_interest && (
-                            <div className="mt-3 border-t border-line pt-3">
-                              <p className="font-mono-ui text-[11px] uppercase tracking-widest text-olive">
-                                Interesados en tours / experiencias
-                              </p>
-                              <p className="mt-1 text-sm text-ink">
-                                {r.tour_notes || "No dejaron detalle — hay que preguntar qué les interesa al confirmar."}
-                              </p>
+                                  </select>
+                                </label>
+
+                                <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                  Cantidad de huéspedes
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    value={editForm.guest_count}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, guest_count: e.target.value }))}
+                                    className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                  />
+                                </label>
+
+                                <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                  Canal
+                                  <select
+                                    value={editForm.channel}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, channel: e.target.value }))}
+                                    className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                  >
+                                    {Object.entries(ALL_CHANNEL_LABELS).map(([value, label]) => (
+                                      <option key={value} value={value}>
+                                        {label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+
+                                <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                  Estado
+                                  <select
+                                    value={editForm.status}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
+                                    className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                  >
+                                    {Object.entries(STATUS_LABEL).map(([value, label]) => (
+                                      <option key={value} value={value}>
+                                        {label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+
+                                <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                  Check-in
+                                  <input
+                                    type="date"
+                                    value={editForm.check_in}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, check_in: e.target.value }))}
+                                    className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                  />
+                                </label>
+
+                                <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                  Check-out
+                                  <input
+                                    type="date"
+                                    value={editForm.check_out}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, check_out: e.target.value }))}
+                                    className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                  />
+                                </label>
+
+                                <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                  Estado de pago
+                                  <select
+                                    value={editForm.payment_status}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, payment_status: e.target.value }))}
+                                    className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                  >
+                                    <option value="pending">Pendiente</option>
+                                    <option value="paid">Pagado</option>
+                                    <option value="refunded">Reembolsado</option>
+                                  </select>
+                                </label>
+
+                                <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                  Monto total en {currency}
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    placeholder="Se calcula con la tarifa si lo dejas vacío"
+                                    value={editForm.total_cents}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, total_cents: e.target.value }))}
+                                    className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                  />
+                                </label>
+
+                                <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                  Código promocional
+                                  <input
+                                    type="text"
+                                    value={editForm.promo_code}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, promo_code: e.target.value }))}
+                                    className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                  />
+                                </label>
+                              </div>
+
+                              <label className="flex items-center gap-2 text-xs text-ink-soft">
+                                <input
+                                  type="checkbox"
+                                  checked={editForm.tour_interest}
+                                  onChange={(e) => setEditForm((f) => ({ ...f, tour_interest: e.target.checked }))}
+                                  className="h-4 w-4 rounded border-line"
+                                />
+                                Interesado en tours / experiencias
+                              </label>
+
+                              {editForm.tour_interest && (
+                                <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                  Notas sobre tours
+                                  <textarea
+                                    rows={2}
+                                    value={editForm.tour_notes}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, tour_notes: e.target.value }))}
+                                    className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                  />
+                                </label>
+                              )}
+
+                              <div className="border-t border-line pt-3">
+                                <p className="font-mono-ui text-[11px] uppercase tracking-widest text-ink-faint">
+                                  Vuelos y traslado al aeropuerto
+                                </p>
+                                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                  <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                    Hora de llegada
+                                    <input
+                                      type="time"
+                                      value={editForm.arrival_flight_time}
+                                      onChange={(e) => setEditForm((f) => ({ ...f, arrival_flight_time: e.target.value }))}
+                                      className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                    />
+                                  </label>
+                                  <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                    Número de vuelo (llegada)
+                                    <input
+                                      type="text"
+                                      placeholder="ej: LA841"
+                                      value={editForm.arrival_flight_number}
+                                      onChange={(e) => setEditForm((f) => ({ ...f, arrival_flight_number: e.target.value }))}
+                                      className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                    />
+                                  </label>
+                                  <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                    Hora de salida
+                                    <input
+                                      type="time"
+                                      value={editForm.departure_flight_time}
+                                      onChange={(e) => setEditForm((f) => ({ ...f, departure_flight_time: e.target.value }))}
+                                      className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                    />
+                                  </label>
+                                  <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                    Número de vuelo (salida)
+                                    <input
+                                      type="text"
+                                      placeholder="ej: LA842"
+                                      value={editForm.departure_flight_number}
+                                      onChange={(e) => setEditForm((f) => ({ ...f, departure_flight_number: e.target.value }))}
+                                      className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                    />
+                                  </label>
+                                </div>
+                                <label className="mt-3 flex flex-col gap-1 text-xs text-ink-soft">
+                                  Notas del traslado
+                                  <textarea
+                                    rows={2}
+                                    value={editForm.airport_transfer_notes}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, airport_transfer_notes: e.target.value }))}
+                                    className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                  />
+                                </label>
+                              </div>
+
+                              <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                Comentarios
+                                <textarea
+                                  rows={3}
+                                  placeholder="Cualquier cosa que el equipo necesite saber sobre esta reserva — no se le muestra al huésped."
+                                  value={editForm.internal_notes}
+                                  onChange={(e) => setEditForm((f) => ({ ...f, internal_notes: e.target.value }))}
+                                  className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                />
+                              </label>
+
+                              <div className="border-t border-line pt-3">
+                                <p className="font-mono-ui text-[11px] uppercase tracking-widest text-ink-faint">
+                                  Huéspedes
+                                </p>
+                                <div className="mt-2 space-y-3">
+                                  {editGuests.map((g) => (
+                                    <div key={g.key} className="rounded-lg border border-line bg-paper p-3">
+                                      <div className="mb-2 flex items-center gap-2">
+                                        {g.is_primary && <Pill tone="neutral">Titular</Pill>}
+                                        {!g.id && (
+                                          <button
+                                            type="button"
+                                            onClick={() => removeGuestRow(g.key)}
+                                            className="ml-auto text-[11px] text-ink-faint hover:text-rust"
+                                          >
+                                            Quitar
+                                          </button>
+                                        )}
+                                      </div>
+                                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                        <label className="flex flex-col gap-1 text-xs text-ink-soft sm:col-span-2">
+                                          Nombre
+                                          <input
+                                            type="text"
+                                            value={g.full_name}
+                                            onChange={(e) => updateGuestRow(g.key, { full_name: e.target.value })}
+                                            className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                          />
+                                        </label>
+                                        <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                          RUT / pasaporte
+                                          <input
+                                            type="text"
+                                            value={g.document_id}
+                                            onChange={(e) => updateGuestRow(g.key, { document_id: e.target.value })}
+                                            className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                          />
+                                        </label>
+                                        <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                          Nacionalidad
+                                          <input
+                                            type="text"
+                                            value={g.nationality}
+                                            onChange={(e) => updateGuestRow(g.key, { nationality: e.target.value })}
+                                            className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                          />
+                                        </label>
+                                        <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                          Fecha de nacimiento
+                                          <input
+                                            type="date"
+                                            value={g.birth_date}
+                                            onChange={(e) => updateGuestRow(g.key, { birth_date: e.target.value })}
+                                            className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                          />
+                                        </label>
+                                        <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                          Teléfono
+                                          <input
+                                            type="tel"
+                                            value={g.phone}
+                                            onChange={(e) => updateGuestRow(g.key, { phone: e.target.value })}
+                                            className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                          />
+                                        </label>
+                                        <label className="flex flex-col gap-1 text-xs text-ink-soft">
+                                          Email
+                                          <input
+                                            type="email"
+                                            value={g.email}
+                                            onChange={(e) => updateGuestRow(g.key, { email: e.target.value })}
+                                            className="rounded-lg border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-terracotta"
+                                          />
+                                        </label>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={addGuestRow}
+                                  className="mt-3 text-xs text-terracotta underline decoration-dotted"
+                                >
+                                  + Agregar huésped
+                                </button>
+                              </div>
+
+                              {editError && <p className="text-xs text-rust">{editError}</p>}
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  disabled={savingEdit}
+                                  onClick={() => saveEdit(r)}
+                                  className="rounded-lg bg-terracotta px-4 py-2 text-xs font-medium text-paper transition-opacity hover:opacity-90 disabled:opacity-50"
+                                >
+                                  {savingEdit ? "Guardando…" : "Guardar cambios"}
+                                </button>
+                                <button type="button" onClick={closeEdit} className="text-xs text-ink-faint hover:text-ink">
+                                  Cancelar
+                                </button>
+                              </div>
                             </div>
+                          ) : (
+                            <>
+                              <p className="font-mono-ui text-[11px] uppercase tracking-widest text-ink-faint">
+                                Personas que ingresan a la isla con esta reserva
+                              </p>
+                              {people.length === 0 ? (
+                                <p className="mt-2 text-xs text-ink-faint">
+                                  {r.guest_count != null
+                                    ? `Todavía no se cargaron los datos de cada persona — se anotó que serían ${r.guest_count} ${r.guest_count === 1 ? "huésped" : "huéspedes"} en total (solo el titular quedó registrado por ahora).`
+                                    : "Reserva antigua sin este detalle todavía — solo se guardó el nombre del titular."}
+                                </p>
+                              ) : (
+                                <ul className="mt-2 space-y-1.5">
+                                  {people.map((p, i) => {
+                                    const dietTags = [
+                                      p.dietary_vegan && "Vegano",
+                                      p.dietary_vegetarian && "Vegetariano",
+                                      p.dietary_celiac && "Celíaco",
+                                      p.dietary_lactose_free && "Sin lactosa",
+                                    ].filter(Boolean) as string[];
+                                    return (
+                                      <li key={p.id ?? i} className="flex flex-wrap items-center gap-1.5 text-sm text-ink">
+                                        <span className="font-medium">{p.full_name}</span>
+                                        {p.is_primary && <Pill tone="neutral">Titular</Pill>}
+                                        <span className="text-ink-faint">
+                                          {p.document_id ? `RUT/pasaporte: ${p.document_id}` : "sin identificación registrada"}
+                                          {p.nationality ? ` · ${p.nationality}` : ""}
+                                        </span>
+                                        {dietTags.map((tag) => (
+                                          <Pill key={tag} tone="olive">
+                                            {tag}
+                                          </Pill>
+                                        ))}
+                                        {p.dietary_other && (
+                                          <span className="text-xs text-terracotta">· {p.dietary_other}</span>
+                                        )}
+                                        {p.mobility_assistance && (
+                                          <Pill tone="rust">
+                                            Movilidad{p.mobility_notes ? `: ${p.mobility_notes}` : ""}
+                                          </Pill>
+                                        )}
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              )}
+                              {r.tour_interest && (
+                                <div className="mt-3 border-t border-line pt-3">
+                                  <p className="font-mono-ui text-[11px] uppercase tracking-widest text-olive">
+                                    Interesados en tours / experiencias
+                                  </p>
+                                  <p className="mt-1 text-sm text-ink">
+                                    {r.tour_notes || "No dejaron detalle — hay que preguntar qué les interesa al confirmar."}
+                                  </p>
+                                </div>
+                              )}
+                              {(r.arrival_flight_number || r.departure_flight_number || r.airport_transfer_notes) && (
+                                <div className="mt-3 border-t border-line pt-3">
+                                  <p className="font-mono-ui text-[11px] uppercase tracking-widest text-ink-faint">
+                                    Vuelos y traslado
+                                  </p>
+                                  <p className="mt-1 text-sm text-ink">
+                                    {r.arrival_flight_number && (
+                                      <>
+                                        Llegada: {r.arrival_flight_number}
+                                        {r.arrival_flight_time ? ` a las ${r.arrival_flight_time.slice(0, 5)}` : ""}
+                                        <br />
+                                      </>
+                                    )}
+                                    {r.departure_flight_number && (
+                                      <>
+                                        Salida: {r.departure_flight_number}
+                                        {r.departure_flight_time ? ` a las ${r.departure_flight_time.slice(0, 5)}` : ""}
+                                        <br />
+                                      </>
+                                    )}
+                                    {r.airport_transfer_notes}
+                                  </p>
+                                </div>
+                              )}
+                              {r.internal_notes && (
+                                <div className="mt-3 border-t border-line pt-3">
+                                  <p className="font-mono-ui text-[11px] uppercase tracking-widest text-ink-faint">
+                                    Comentarios
+                                  </p>
+                                  <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{r.internal_notes}</p>
+                                </div>
+                              )}
+                            </>
                           )}
                         </td>
                       </tr>

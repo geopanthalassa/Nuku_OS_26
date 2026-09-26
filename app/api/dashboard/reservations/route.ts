@@ -49,7 +49,7 @@ export async function GET(req: Request) {
         // (app/(admin)/disponibilidad/page.tsx) para saber a qué fila del
         // cuadro pertenece cada reserva. No rompe nada existente: es un
         // campo que se suma, no se saca ninguno.
-        "id, room_id, guest_id, check_in, check_out, status, channel, payment_status, promo_code, total_cents, guest_count, stripe_payment_link, tour_interest, tour_notes, arrival_flight_time, arrival_flight_number, departure_flight_time, departure_flight_number, airport_transfer_notes, created_at, guests(full_name, email, phone), rooms(id, name, base_rate_cents), reservation_guests(id, full_name, document_id, nationality, is_primary, dietary_vegan, dietary_vegetarian, dietary_celiac, dietary_lactose_free, dietary_other, mobility_assistance, mobility_notes)"
+        "id, room_id, guest_id, check_in, check_out, status, channel, payment_status, promo_code, total_cents, guest_count, internal_notes, stripe_payment_link, tour_interest, tour_notes, arrival_flight_time, arrival_flight_number, departure_flight_time, departure_flight_number, airport_transfer_notes, created_at, guests(full_name, email, phone), rooms(id, name, base_rate_cents), reservation_guests(id, full_name, document_id, nationality, birth_date, phone, email, is_primary, dietary_vegan, dietary_vegetarian, dietary_celiac, dietary_lactose_free, dietary_other, mobility_assistance, mobility_notes)"
       )
       .eq("account_id", accountId)
       .order("check_in", { ascending: true });
@@ -113,6 +113,21 @@ async function updateReservation(accountId: string, payload: Record<string, unkn
     departure_flight_time,
     departure_flight_number,
     airport_transfer_notes,
+    // 26/9/2026: pedido de Andre — "Editar", en general toda la ficha. Hasta
+    // ahora esta ruta solo dejaba tocar status/room_id/guest_count/vuelos;
+    // el resto de los campos de la reserva (fechas, canal, pago, monto,
+    // cupón, tours, comentarios internos) no se podían corregir una vez
+    // creada la reserva. Todos son opcionales acá — solo se actualiza lo que
+    // venga en el body.
+    check_in,
+    check_out,
+    channel,
+    payment_status,
+    total_cents,
+    promo_code,
+    tour_interest,
+    tour_notes,
+    internal_notes,
   } = payload;
   if (typeof id !== "string") {
     return NextResponse.json(
@@ -177,16 +192,67 @@ async function updateReservation(accountId: string, payload: Record<string, unkn
     }
   }
 
+  // 26/9/2026: pedido de Andre — botón "Editar" para toda la ficha, no solo
+  // el estado/habitación/vuelos. Estos campos son todos opcionales: solo se
+  // actualiza lo que venga en el body. La validación de fechas cruzadas
+  // (check_out > check_in) se hace más abajo, una vez que sabemos las
+  // fechas actuales de la reserva para completar la que no vino en el patch.
+  if (check_in !== undefined && typeof check_in !== "string") {
+    return NextResponse.json({ error: "check_in debe ser un string (fecha)." }, { status: 400 });
+  }
+  if (check_out !== undefined && typeof check_out !== "string") {
+    return NextResponse.json({ error: "check_out debe ser un string (fecha)." }, { status: 400 });
+  }
+  if (channel !== undefined && (typeof channel !== "string" || !MANUAL_CHANNELS.includes(channel) && channel !== "direct")) {
+    return NextResponse.json(
+      { error: `channel inválido. Debe ser uno de: ${MANUAL_CHANNELS.join(", ")}, direct.` },
+      { status: 400 }
+    );
+  }
+  if (payment_status !== undefined && (typeof payment_status !== "string" || !VALID_PAYMENT_STATUSES.includes(payment_status))) {
+    return NextResponse.json(
+      { error: `payment_status inválido. Debe ser uno de: ${VALID_PAYMENT_STATUSES.join(", ")}.` },
+      { status: 400 }
+    );
+  }
+  let totalCentsPatch: number | null | undefined;
+  if (total_cents !== undefined) {
+    if (total_cents === null || total_cents === "") {
+      totalCentsPatch = null;
+    } else {
+      const n = Number(total_cents);
+      if (!Number.isFinite(n) || n < 0) {
+        return NextResponse.json({ error: "total_cents debe ser un número mayor o igual a 0." }, { status: 400 });
+      }
+      totalCentsPatch = Math.round(n);
+    }
+  }
+  if (tour_interest !== undefined && typeof tour_interest !== "boolean") {
+    return NextResponse.json({ error: "tour_interest debe ser true o false." }, { status: 400 });
+  }
+
+  const extraPatch: Record<string, unknown> = {};
+  if (typeof channel === "string") extraPatch.channel = channel;
+  if (typeof payment_status === "string") extraPatch.payment_status = payment_status;
+  if (totalCentsPatch !== undefined) extraPatch.total_cents = totalCentsPatch;
+  if (typeof promo_code === "string") extraPatch.promo_code = promo_code.trim() ? promo_code.trim().toUpperCase() : null;
+  if (typeof tour_interest === "boolean") extraPatch.tour_interest = tour_interest;
+  if (typeof tour_notes === "string") extraPatch.tour_notes = tour_notes.trim() || null;
+  if (typeof internal_notes === "string") extraPatch.internal_notes = internal_notes.trim() || null;
+
   if (
     status === undefined &&
     roomIdPatch === undefined &&
     guestCountPatch === undefined &&
-    Object.keys(flightPatch).length === 0
+    check_in === undefined &&
+    check_out === undefined &&
+    Object.keys(flightPatch).length === 0 &&
+    Object.keys(extraPatch).length === 0
   ) {
     return NextResponse.json(
       {
         error:
-          "No hay nada para actualizar: manda status, room_id, guest_count y/o los campos de traslado al aeropuerto.",
+          "No hay nada para actualizar: manda al menos un campo de la reserva a cambiar.",
       },
       { status: 400 }
     );
@@ -194,6 +260,32 @@ async function updateReservation(accountId: string, payload: Record<string, unkn
 
   try {
     const supabase = getSupabaseServerClient();
+
+    // Se necesitan los datos actuales de la reserva casi siempre: para
+    // completar la fecha que no vino en el patch (y poder validar
+    // check_out > check_in), para saber el estado efectivo antes de
+    // rechequear disponibilidad, y para confirmar que la reserva es de esta
+    // cuenta.
+    const { data: current, error: currentError } = await supabase
+      .from("reservations")
+      .select("check_in, check_out, status, room_id")
+      .eq("id", id)
+      .eq("account_id", accountId)
+      .maybeSingle();
+    if (currentError) throw new Error(currentError.message);
+    if (!current) {
+      return NextResponse.json({ error: "La reserva no existe o no pertenece a esta cuenta." }, { status: 404 });
+    }
+
+    const effectiveCheckIn = typeof check_in === "string" && check_in.trim() ? check_in.trim() : current.check_in;
+    const effectiveCheckOut = typeof check_out === "string" && check_out.trim() ? check_out.trim() : current.check_out;
+    if (effectiveCheckOut <= effectiveCheckIn) {
+      return NextResponse.json({ error: "check_out debe ser posterior a check_in." }, { status: 400 });
+    }
+
+    const datesPatch: Record<string, string> = {};
+    if (typeof check_in === "string" && check_in.trim()) datesPatch.check_in = check_in.trim();
+    if (typeof check_out === "string" && check_out.trim()) datesPatch.check_out = check_out.trim();
 
     if (roomIdPatch) {
       // La habitación tiene que ser de esta cuenta.
@@ -207,27 +299,21 @@ async function updateReservation(accountId: string, payload: Record<string, unkn
       if (!room) {
         return NextResponse.json({ error: "La habitación no existe o no pertenece a esta cuenta." }, { status: 400 });
       }
+    }
 
-      // Para chequear disponibilidad hace falta saber las fechas y el
-      // estado actuales de esta reserva (no vienen en el payload).
-      const { data: current, error: currentError } = await supabase
-        .from("reservations")
-        .select("check_in, check_out, status")
-        .eq("id", id)
-        .eq("account_id", accountId)
-        .maybeSingle();
-      if (currentError) throw new Error(currentError.message);
-      if (!current) {
-        return NextResponse.json({ error: "La reserva no existe o no pertenece a esta cuenta." }, { status: 404 });
-      }
-
+    // Rechequear disponibilidad si: se está asignando/cambiando la
+    // habitación, o se están moviendo las fechas de una reserva que ya tiene
+    // habitación. Si no hay habitación (todavía) no hay nada que chequear.
+    const effectiveRoomId = roomIdPatch !== undefined ? roomIdPatch : current.room_id;
+    const datesChanged = Object.keys(datesPatch).length > 0;
+    if (effectiveRoomId && (roomIdPatch !== undefined || datesChanged)) {
       const effectiveStatus = typeof status === "string" ? status : current.status;
       if (effectiveStatus === "requested" || effectiveStatus === "confirmed") {
         const availability = await checkAvailability({
           accountId,
-          roomId: roomIdPatch,
-          checkIn: current.check_in,
-          checkOut: current.check_out,
+          roomId: effectiveRoomId,
+          checkIn: effectiveCheckIn,
+          checkOut: effectiveCheckOut,
           excludeReservationId: id,
         });
         if (!availability.available) {
@@ -239,7 +325,7 @@ async function updateReservation(accountId: string, payload: Record<string, unkn
       }
     }
 
-    const updatePayload: Record<string, unknown> = { ...flightPatch };
+    const updatePayload: Record<string, unknown> = { ...flightPatch, ...extraPatch, ...datesPatch };
     if (typeof status === "string") updatePayload.status = status;
     if (roomIdPatch !== undefined) updatePayload.room_id = roomIdPatch;
     if (guestCountPatch !== undefined) updatePayload.guest_count = guestCountPatch;
