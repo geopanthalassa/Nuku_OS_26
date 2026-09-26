@@ -49,7 +49,7 @@ export async function GET(req: Request) {
         // (app/(admin)/disponibilidad/page.tsx) para saber a qué fila del
         // cuadro pertenece cada reserva. No rompe nada existente: es un
         // campo que se suma, no se saca ninguno.
-        "id, room_id, guest_id, check_in, check_out, status, channel, payment_status, promo_code, total_cents, stripe_payment_link, tour_interest, tour_notes, arrival_flight_time, arrival_flight_number, departure_flight_time, departure_flight_number, airport_transfer_notes, created_at, guests(full_name, email, phone), rooms(id, name, base_rate_cents), reservation_guests(id, full_name, document_id, nationality, is_primary, dietary_vegan, dietary_vegetarian, dietary_celiac, dietary_lactose_free, dietary_other, mobility_assistance, mobility_notes)"
+        "id, room_id, guest_id, check_in, check_out, status, channel, payment_status, promo_code, total_cents, guest_count, stripe_payment_link, tour_interest, tour_notes, arrival_flight_time, arrival_flight_number, departure_flight_time, departure_flight_number, airport_transfer_notes, created_at, guests(full_name, email, phone), rooms(id, name, base_rate_cents), reservation_guests(id, full_name, document_id, nationality, is_primary, dietary_vegan, dietary_vegetarian, dietary_celiac, dietary_lactose_free, dietary_other, mobility_assistance, mobility_notes)"
       )
       .eq("account_id", accountId)
       .order("check_in", { ascending: true });
@@ -106,6 +106,8 @@ async function updateReservation(accountId: string, payload: Record<string, unkn
   const {
     id,
     status,
+    room_id,
+    guest_count,
     arrival_flight_time,
     arrival_flight_number,
     departure_flight_time,
@@ -143,17 +145,104 @@ async function updateReservation(accountId: string, payload: Record<string, unkn
   if (typeof airport_transfer_notes === "string")
     flightPatch.airport_transfer_notes = airport_transfer_notes.trim() || null;
 
-  if (status === undefined && Object.keys(flightPatch).length === 0) {
+  // 26/9/2026: pedido de Andre — una reserva a mano puede nacer sin
+  // habitación (todavía no se sabe cuál va a quedar) y se le asigna después
+  // desde acá. room_id === "" o null limpia la asignación; un id de
+  // habitación válido la asigna. Igual que al crear, si la reserva está
+  // "requested"/"confirmed" hay que volver a chequear disponibilidad antes
+  // de asignar — nadie chequeó eso todavía porque hasta ahora no tenía
+  // habitación.
+  let roomIdPatch: string | null | undefined;
+  if (typeof room_id === "string") {
+    roomIdPatch = room_id.trim() === "" ? null : room_id.trim();
+  } else if (room_id === null) {
+    roomIdPatch = null;
+  } else if (room_id !== undefined) {
+    return NextResponse.json({ error: "room_id debe ser un string o null." }, { status: 400 });
+  }
+
+  let guestCountPatch: number | null | undefined;
+  if (guest_count !== undefined) {
+    if (guest_count === null || guest_count === "") {
+      guestCountPatch = null;
+    } else {
+      const n = Number(guest_count);
+      if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+        return NextResponse.json(
+          { error: "guest_count debe ser un número entero mayor a 0 (o vacío para borrarlo)." },
+          { status: 400 }
+        );
+      }
+      guestCountPatch = n;
+    }
+  }
+
+  if (
+    status === undefined &&
+    roomIdPatch === undefined &&
+    guestCountPatch === undefined &&
+    Object.keys(flightPatch).length === 0
+  ) {
     return NextResponse.json(
-      { error: "No hay nada para actualizar: manda status y/o los campos de traslado al aeropuerto." },
+      {
+        error:
+          "No hay nada para actualizar: manda status, room_id, guest_count y/o los campos de traslado al aeropuerto.",
+      },
       { status: 400 }
     );
   }
 
   try {
     const supabase = getSupabaseServerClient();
+
+    if (roomIdPatch) {
+      // La habitación tiene que ser de esta cuenta.
+      const { data: room, error: roomError } = await supabase
+        .from("rooms")
+        .select("id")
+        .eq("id", roomIdPatch)
+        .eq("account_id", accountId)
+        .maybeSingle();
+      if (roomError) throw new Error(roomError.message);
+      if (!room) {
+        return NextResponse.json({ error: "La habitación no existe o no pertenece a esta cuenta." }, { status: 400 });
+      }
+
+      // Para chequear disponibilidad hace falta saber las fechas y el
+      // estado actuales de esta reserva (no vienen en el payload).
+      const { data: current, error: currentError } = await supabase
+        .from("reservations")
+        .select("check_in, check_out, status")
+        .eq("id", id)
+        .eq("account_id", accountId)
+        .maybeSingle();
+      if (currentError) throw new Error(currentError.message);
+      if (!current) {
+        return NextResponse.json({ error: "La reserva no existe o no pertenece a esta cuenta." }, { status: 404 });
+      }
+
+      const effectiveStatus = typeof status === "string" ? status : current.status;
+      if (effectiveStatus === "requested" || effectiveStatus === "confirmed") {
+        const availability = await checkAvailability({
+          accountId,
+          roomId: roomIdPatch,
+          checkIn: current.check_in,
+          checkOut: current.check_out,
+          excludeReservationId: id,
+        });
+        if (!availability.available) {
+          return NextResponse.json(
+            { error: "Esa habitación ya está reservada para esas fechas. Revisa el calendario o elige otra." },
+            { status: 409 }
+          );
+        }
+      }
+    }
+
     const updatePayload: Record<string, unknown> = { ...flightPatch };
     if (typeof status === "string") updatePayload.status = status;
+    if (roomIdPatch !== undefined) updatePayload.room_id = roomIdPatch;
+    if (guestCountPatch !== undefined) updatePayload.guest_count = guestCountPatch;
 
     const { error } = await supabase
       .from("reservations")
@@ -161,7 +250,20 @@ async function updateReservation(accountId: string, payload: Record<string, unkn
       .eq("id", id)
       .eq("account_id", accountId); // doble filtro: nunca tocar una fila de otra cuenta
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      // Condición de carrera: alguien asignó esa misma habitación/fechas
+      // justo entre el checkAvailability() de arriba y este update.
+      if (isOverlapConstraintError(error)) {
+        return NextResponse.json(
+          {
+            error:
+              "Esa habitación se acaba de reservar para esas fechas (alguien más la tomó justo antes). Revisa el calendario e intenta de nuevo.",
+          },
+          { status: 409 }
+        );
+      }
+      throw new Error(error.message);
+    }
 
     // Al confirmar, armamos el mensaje de bienvenida ya mismo (mismo motor
     // que usará n8n) para que el equipo lo pueda copiar y mandar a mano
@@ -202,6 +304,7 @@ async function createReservation(accountId: string, payload: Record<string, unkn
     promo_code,
     tour_interest,
     tour_notes,
+    guest_count,
     arrival_flight_time,
     arrival_flight_number,
     departure_flight_time,
@@ -211,7 +314,6 @@ async function createReservation(accountId: string, payload: Record<string, unkn
   } = payload;
 
   if (
-    typeof room_id !== "string" ||
     typeof check_in !== "string" ||
     typeof check_out !== "string" ||
     typeof channel !== "string" ||
@@ -221,10 +323,33 @@ async function createReservation(accountId: string, payload: Record<string, unkn
     return NextResponse.json(
       {
         error:
-          "Faltan o son inválidos los campos obligatorios: room_id, check_in, check_out, channel (strings) y guest (objeto).",
+          "Faltan o son inválidos los campos obligatorios: check_in, check_out, channel (strings) y guest (objeto).",
       },
       { status: 400 }
     );
+  }
+
+  // 26/9/2026: pedido de Andre — a veces todavía no se sabe qué habitación
+  // va a quedar cuando se está cargando la reserva a mano (por teléfono,
+  // por ejemplo). room_id ahora es opcional: se puede guardar sin
+  // habitación y asignarla después desde Reservas (ver updateReservation
+  // más abajo). Mientras no tenga habitación, no hay nada que chequear por
+  // disponibilidad ni tarifa que estimar — eso se hace recién al asignarla.
+  if (room_id !== undefined && room_id !== null && typeof room_id !== "string") {
+    return NextResponse.json({ error: "room_id debe ser un string o null." }, { status: 400 });
+  }
+  const roomIdValue = typeof room_id === "string" && room_id.trim() ? room_id.trim() : null;
+
+  let guestCountValue: number | null = null;
+  if (guest_count !== undefined && guest_count !== null && guest_count !== "") {
+    const n = Number(guest_count);
+    if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+      return NextResponse.json(
+        { error: "guest_count debe ser un número entero mayor a 0." },
+        { status: 400 }
+      );
+    }
+    guestCountValue = n;
   }
 
   if (!MANUAL_CHANNELS.includes(channel)) {
@@ -281,28 +406,39 @@ async function createReservation(accountId: string, payload: Record<string, unkn
 
     // La habitación tiene que ser de esta cuenta — igual que reservations,
     // el filtro es a mano porque este cliente usa la service role key (ver
-    // lib/supabase/server.ts), que salta RLS.
-    const { data: room, error: roomError } = await supabase
-      .from("rooms")
-      .select("id, base_rate_cents")
-      .eq("id", room_id)
-      .eq("account_id", accountId)
-      .maybeSingle();
-    if (roomError) throw new Error(roomError.message);
-    if (!room) {
-      return NextResponse.json({ error: "La habitación no existe o no pertenece a esta cuenta." }, { status: 400 });
-    }
+    // lib/supabase/server.ts), que salta RLS. Si todavía no se eligió
+    // habitación (roomIdValue null), no hay nada que buscar ni chequear acá
+    // — se hace cuando se asigne después (ver updateReservation).
+    let room: { id: string; base_rate_cents: number | null } | null = null;
+    if (roomIdValue) {
+      const { data: foundRoom, error: roomError } = await supabase
+        .from("rooms")
+        .select("id, base_rate_cents")
+        .eq("id", roomIdValue)
+        .eq("account_id", accountId)
+        .maybeSingle();
+      if (roomError) throw new Error(roomError.message);
+      if (!foundRoom) {
+        return NextResponse.json({ error: "La habitación no existe o no pertenece a esta cuenta." }, { status: 400 });
+      }
+      room = foundRoom;
 
-    // Mismo chequeo rápido que usa el formulario público antes de crear
-    // nada — la garantía real contra condiciones de carrera es la
-    // exclusion constraint de la base (ver el catch del insert, abajo).
-    if (resolvedStatus === "requested" || resolvedStatus === "confirmed") {
-      const availability = await checkAvailability({ accountId, roomId: room_id, checkIn: check_in, checkOut: check_out });
-      if (!availability.available) {
-        return NextResponse.json(
-          { error: "Esa habitación ya está reservada para esas fechas. Revisa el calendario o elige otras fechas." },
-          { status: 409 }
-        );
+      // Mismo chequeo rápido que usa el formulario público antes de crear
+      // nada — la garantía real contra condiciones de carrera es la
+      // exclusion constraint de la base (ver el catch del insert, abajo).
+      if (resolvedStatus === "requested" || resolvedStatus === "confirmed") {
+        const availability = await checkAvailability({
+          accountId,
+          roomId: roomIdValue,
+          checkIn: check_in,
+          checkOut: check_out,
+        });
+        if (!availability.available) {
+          return NextResponse.json(
+            { error: "Esa habitación ya está reservada para esas fechas. Revisa el calendario o elige otras fechas." },
+            { status: 409 }
+          );
+        }
       }
     }
 
@@ -358,7 +494,7 @@ async function createReservation(accountId: string, payload: Record<string, unkn
     // queda editable después desde "Cobrar". Sin tarifa cargada, queda en
     // null ([POR CONFIRMAR]) en vez de inventar un precio.
     let totalCents = totalCentsInput;
-    if (totalCents === null && room.base_rate_cents != null) {
+    if (totalCents === null && room && room.base_rate_cents != null) {
       const n = Math.round((new Date(check_out).getTime() - new Date(check_in).getTime()) / (1000 * 60 * 60 * 24));
       if (n > 0) totalCents = room.base_rate_cents * n;
     }
@@ -367,7 +503,7 @@ async function createReservation(accountId: string, payload: Record<string, unkn
       .from("reservations")
       .insert({
         account_id: accountId,
-        room_id,
+        room_id: roomIdValue,
         guest_id: guestId,
         check_in,
         check_out,
@@ -375,6 +511,7 @@ async function createReservation(accountId: string, payload: Record<string, unkn
         channel,
         payment_status: resolvedPaymentStatus,
         total_cents: totalCents,
+        guest_count: guestCountValue,
         promo_code: typeof promo_code === "string" && promo_code.trim() ? promo_code.trim().toUpperCase() : null,
         tour_interest: tour_interest === true,
         tour_notes: typeof tour_notes === "string" && tour_notes.trim() ? tour_notes.trim() : null,
