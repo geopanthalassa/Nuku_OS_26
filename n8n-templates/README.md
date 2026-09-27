@@ -18,6 +18,20 @@ paso — se puede recrear a mano en un minuto.
   (`solicitud_resena`, `recordatorio_pago`) — se duplica este workflow,
   se cambia `template_key` y el disparador (24h después del check-out /
   48h antes de la llegada con `payment_status = pending`).
+- **`recordatorio-llegada.json`** — corre una vez por día (Schedule Trigger,
+  no un webhook) y llama a `/api/automations/arrivals-in-3-days` para pedirle
+  a Nuku OS TODO lo que hace falta saber sobre las reservas confirmadas que
+  hacen check-in dentro de exactamente 3 días. Trae dos avisos separados,
+  cada uno con su propio interruptor en el panel:
+  - `guest_messages` (`recordatorio_llegada_huesped`): un mensaje por
+    reserva, para el HUÉSPED — le recuerda el documento que debe mostrar en
+    el aeropuerto para embarcar hacia Rapa Nui.
+  - `staff_digest` (`recordatorio_llegada_equipo`): un solo mensaje con el
+    resumen de todas las llegadas de ese día — para el EQUIPO de Kuhane, no
+    para el huésped —, con nombre, habitación y contacto de cada uno.
+
+  Mismo patrón de "una vez por día" que se usaría para `cumpleanos` (también
+  por fecha, no por evento puntual).
 
 ## Cómo se onboardea un cliente nuevo con esto
 

@@ -1,0 +1,148 @@
+{
+  "name": "Nuku OS — Recordatorio 3 días antes de la llegada [PLANTILLA]",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 10
+            }
+          ]
+        }
+      },
+      "id": "schedule-diario",
+      "name": "1. Todos los días a las 10am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-200, 100],
+      "notes": "Se dispara una vez por día. La hora (10am) es un punto de partida — cambiarla si conviene otro horario para esta cuenta."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "account-id",
+              "name": "account_id",
+              "value": "REEMPLAZAR_CON_EL_UUID_DE_ACCOUNTS_DE_ESTA_CUENTA",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "config-cuenta",
+      "name": "2. Config de esta cuenta",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [20, 100],
+      "notes": "Duplicar este workflow por cliente y solo cambiar account_id acá."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.NUKU_OS_BASE_URL }}/api/automations/arrivals-in-3-days?account_id={{ $json.account_id }}",
+        "options": {}
+      },
+      "id": "buscar-llegadas",
+      "name": "3. Buscar llegadas en 3 días (Nuku OS)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [240, 100],
+      "notes": "Devuelve DOS cosas por separado, cada una ya respetando su propio interruptor del panel Automatizaciones: guest_messages (uno por huésped) y staff_digest (uno solo, para el equipo)."
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "guest_messages",
+        "options": {}
+      },
+      "id": "un-item-por-huesped",
+      "name": "4a. Un ítem por huésped",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [460, -40],
+      "notes": "Rama para el HUÉSPED. Si guest_messages viene vacío (automatización apagada, o nadie llega ese día), este camino simplemente no genera ítems y no se manda nada."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://REEMPLAZAR-endpoint-del-canal",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"REEMPLAZAR_telefono_o_email_del_huesped\",\n  \"message\": \"{{ $json.message }}\"\n}",
+        "options": {}
+      },
+      "id": "enviar-al-huesped",
+      "name": "5a. Enviar al huésped (WhatsApp/email)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, -40],
+      "notes": "Placeholder: reemplazar por el nodo real de envío con la credencial de ESTE cliente. El teléfono/email del huésped no lo devuelve este endpoint todavía — si el canal lo necesita, agregar guests(phone, email) a la consulta de renderUpcomingArrivalReminders en lib/automations.ts (renderUpcomingArrivalsStaffDigest, la rama del equipo, ya los pide)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "no-skip",
+              "leftValue": "={{ $json.staff_digest.skipped }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "notEquals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-hay-resumen",
+      "name": "4b. ¿Hay resumen para el equipo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [460, 240],
+      "notes": "Rama INTERNA. staff_digest.skipped = true si la automatización está apagada en el panel, o si no hay ninguna llegada ese día — en ese caso no se manda nada al equipo."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://REEMPLAZAR-endpoint-del-canal-interno",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"REEMPLAZAR_telefono_o_email_DEL_EQUIPO_DE_KUHANE\",\n  \"message\": \"{{ $json.staff_digest.message }}\"\n}",
+        "options": {}
+      },
+      "id": "enviar-al-equipo",
+      "name": "5b. Enviar al equipo de Kuhane",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 240],
+      "notes": "El destino acá es fijo (el WhatsApp/email del equipo, no el del huésped) — reemplazar por el número/casilla real de Kuhane."
+    }
+  ],
+  "connections": {
+    "1. Todos los días a las 10am": {
+      "main": [[{ "node": "2. Config de esta cuenta", "type": "main", "index": 0 }]]
+    },
+    "2. Config de esta cuenta": {
+      "main": [[{ "node": "3. Buscar llegadas en 3 días (Nuku OS)", "type": "main", "index": 0 }]]
+    },
+    "3. Buscar llegadas en 3 días (Nuku OS)": {
+      "main": [
+        [
+          { "node": "4a. Un ítem por huésped", "type": "main", "index": 0 },
+          { "node": "4b. ¿Hay resumen para el equipo?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "4a. Un ítem por huésped": {
+      "main": [[{ "node": "5a. Enviar al huésped (WhatsApp/email)", "type": "main", "index": 0 }]]
+    },
+    "4b. ¿Hay resumen para el equipo?": {
+      "main": [[{ "node": "5b. Enviar al equipo de Kuhane", "type": "main", "index": 0 }], []]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" }
+}
