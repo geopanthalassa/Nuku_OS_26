@@ -227,6 +227,58 @@ function newGuestRowKey() {
   return `new-${guestRowCounter}`;
 }
 
+function todayKey() {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+// 27/9/2026: pedido de Andre — "no tiene sentido que me meta a reservas y
+// que vea la reserva del 3 de septiembre cuando estamos a 27". Antes la
+// tabla salía en el mismo orden que la manda la API (check_in ascendente
+// puro), así que una reserva vieja ya completada podía aparecer arriba de
+// una activa. Ahora se ordena por qué tan urgente/vigente es, no por fecha
+// sola — y dentro de cada grupo, por fecha.
+//
+// Grupos (de arriba hacia abajo):
+//   0. Confirmada, en curso ahora mismo (hoy cae entre check_in y check_out)
+//   1. Necesita atención: por confirmar, o confirmada pero ya debería
+//      haber salido y nadie la marcó "Completada" todavía
+//   2. Confirmada, todavía por venir
+//   3. Completada — pasa a un segundo plano
+//   4. Cancelada — al final de todo
+// A medida que una reserva pasa de "por venir" a "en curso" a "completada",
+// va bajando sola de grupo sin tocar nada a mano.
+function reservationPriority(r: Reservation, today: string): number {
+  if (r.status === "cancelled") return 4;
+  if (r.status === "completed") return 3;
+  if (r.status === "requested") return 1;
+  // confirmed:
+  if (r.check_in <= today && today <= r.check_out) return 0;
+  if (r.check_out < today) return 1; // ya debería estar completada — necesita revisión
+  return 2; // todavía no llega
+}
+
+// Mismo lenguaje de color que ya usan los Pill de estado (sage/olive/rust) —
+// acá solo un acento sutil a la izquierda de la fila, no la fila entera
+// pintada, para que se note "en curso"/"próxima" vs. "completada" sin
+// inventar una paleta nueva. Las completadas/canceladas además bajan de
+// opacidad, así se leen como "archivo" a simple vista.
+function rowAccentClass(priority: number): string {
+  switch (priority) {
+    case 0:
+      return "border-l-[3px] border-l-sage bg-sage-soft/30"; // en curso hoy
+    case 1:
+      return "border-l-[3px] border-l-olive bg-olive-soft/20"; // necesita atención
+    case 2:
+      return "border-l-[3px] border-l-sage/40"; // próxima, confirmada
+    case 4:
+      return "opacity-50"; // cancelada
+    default:
+      return "opacity-60"; // completada
+  }
+}
+
 export default function ReservasPage() {
   const { accountId, accountName } = useCurrentAccount();
   const account = { ...demoWorkspace.account, name: accountName ?? demoWorkspace.account.name };
@@ -348,9 +400,19 @@ export default function ReservasPage() {
 
   const visibleReservations = useMemo(() => {
     if (!reservations) return [];
-    if (monthFilter === "all") return reservations;
-    return reservations.filter((r) => monthKey(r.check_in) === monthFilter);
+    const today = todayKey();
+    const filtered = monthFilter === "all" ? reservations : reservations.filter((r) => monthKey(r.check_in) === monthFilter);
+    return [...filtered].sort((a, b) => {
+      const pa = reservationPriority(a, today);
+      const pb = reservationPriority(b, today);
+      if (pa !== pb) return pa - pb;
+      // Dentro de "completadas"/"canceladas" las más recientes primero (las
+      // viejas siguen bajando); en los grupos activos, la más próxima primero.
+      return pa >= 3 ? b.check_in.localeCompare(a.check_in) : a.check_in.localeCompare(b.check_in);
+    });
   }, [reservations, monthFilter]);
+
+  const today = todayKey();
 
   async function updateStatus(r: Reservation, status: string) {
     if (!accountId) return;
@@ -1123,9 +1185,10 @@ export default function ReservasPage() {
                   const primaryGuest = people.find((p) => p.is_primary) ?? people[0];
                   const displayName = primaryGuest?.full_name ?? guest?.full_name ?? "—";
                   const isExpanded = expandedId === r.id;
+                  const rowAccent = rowAccentClass(reservationPriority(r, today));
                   return (
                     <Fragment key={r.id}>
-                    <tr className="border-b border-line last:border-0">
+                    <tr className={`border-b border-line last:border-0 ${rowAccent}`}>
                       <td className="px-4 py-3 font-medium">
                         {displayName}
                         {r.promo_code && (

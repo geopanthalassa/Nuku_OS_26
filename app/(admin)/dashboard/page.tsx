@@ -34,6 +34,12 @@ type Reservation = {
   // 23/9/2026: el nombre declarado en la reserva (titular) — la API ya lo
   // manda, solo faltaba usarlo acá. Ver nota junto a la tabla de abajo.
   reservation_guests: { full_name: string; is_primary: boolean; phone?: string | null; email?: string | null }[] | null;
+  // 27/9/2026: pedido de Andre — para la tarjeta "Se van hoy". Estos tres
+  // campos ya existen en `reservations` (carga de vuelo/traslado desde la
+  // ficha de la reserva) y la API ya los manda; solo faltaba pedirlos acá.
+  departure_flight_time: string | null;
+  departure_flight_number: string | null;
+  airport_transfer_notes: string | null;
 };
 
 type RoomOption = { id: string; name: string };
@@ -120,6 +126,13 @@ export default function DashboardPage() {
     (r) => r.status === "confirmed" && r.check_in === arrivalsTargetDate
   );
 
+  // 27/9/2026: pedido de Andre — "quienes se van al aeropuerto hoy, habitación
+  // tanto pasajera tanto tiene traslado al aeropuerto". Reservas confirmadas
+  // cuyo check-out es hoy: quién se va, de qué habitación, y si ya quedó
+  // coordinado un traslado (vuelo/hora cargados en la ficha) o si todavía
+  // hay que preguntarle al huésped.
+  const departingToday = (reservations ?? []).filter((r) => r.status === "confirmed" && r.check_out === today);
+
   const STATUS_LABEL: Record<string, string> = {
     requested: "Por confirmar",
     confirmed: "Confirmada",
@@ -177,6 +190,42 @@ export default function DashboardPage() {
                     <span className="text-ink-soft">{room?.name ?? "—"}</span>
                     <span className="text-ink-soft">hasta {r.check_out}</span>
                     <span className="text-ink-faint">{contacto ?? "sin contacto registrado"}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+
+        {reservations !== null && departingToday.length > 0 && (
+          <section className="rounded-xl border border-sage/30 bg-sage-soft/20 p-4">
+            <h2 className="mb-3 font-display text-lg text-sage">Se van hoy</h2>
+            <ul className="space-y-2">
+              {departingToday.map((r) => {
+                const guest = one(r.guests);
+                const room = one(r.rooms);
+                const people = r.reservation_guests ?? [];
+                const primaryGuest = people.find((p) => p.is_primary) ?? people[0];
+                const displayName = primaryGuest?.full_name ?? guest?.full_name ?? "—";
+                const hasTransfer = Boolean(
+                  r.departure_flight_time || r.departure_flight_number || r.airport_transfer_notes
+                );
+                return (
+                  <li
+                    key={r.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface px-3 py-2 text-sm"
+                  >
+                    <span className="font-medium">{displayName}</span>
+                    <span className="text-ink-soft">{room?.name ?? "—"}</span>
+                    {hasTransfer ? (
+                      <span className="flex items-center gap-1.5 text-ink-soft">
+                        <Pill tone="sage">Traslado coordinado</Pill>
+                        {r.departure_flight_time ?? ""}
+                        {r.departure_flight_number ? ` · ${r.departure_flight_number}` : ""}
+                      </span>
+                    ) : (
+                      <Pill tone="olive">Sin traslado coordinado</Pill>
+                    )}
                   </li>
                 );
               })}
