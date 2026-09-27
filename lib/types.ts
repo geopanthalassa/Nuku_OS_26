@@ -16,6 +16,7 @@ export type Room = {
   name: string;
   capacity: number;
   baseRateCents: number | null; // null = [POR CONFIRMAR]
+  color: string | null; // hex "#rrggbb" para distinguir la habitación de un vistazo; null = sin asignar
 };
 
 export type Guest = {

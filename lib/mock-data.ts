@@ -27,8 +27,8 @@ export const demoWorkspace: AccountWorkspace = {
     // Nombres y tarifas [POR CONFIRMAR] — igual que en habitaciones[] de
     // kuhane-web. No se inventan nombres tipo "Suite Jardín": se etiquetan
     // por número hasta tener la ficha real de cada habitación.
-    { id: "room-1", name: "Habitación 1 [POR CONFIRMAR]", capacity: 2, baseRateCents: NOT_CONFIRMED },
-    { id: "room-2", name: "Habitación 2 [POR CONFIRMAR]", capacity: 2, baseRateCents: NOT_CONFIRMED },
+    { id: "room-1", name: "Habitación 1 [POR CONFIRMAR]", capacity: 2, baseRateCents: NOT_CONFIRMED, color: null },
+    { id: "room-2", name: "Habitación 2 [POR CONFIRMAR]", capacity: 2, baseRateCents: NOT_CONFIRMED, color: null },
   ],
   guests: [
     { id: "guest-1", fullName: "Familia Rossi (huésped de ejemplo)", source: "instagram" },
