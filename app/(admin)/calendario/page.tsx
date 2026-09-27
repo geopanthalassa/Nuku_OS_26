@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import TopBar from "@/components/admin/TopBar";
 import Pill from "@/components/ui/Pill";
+import RoomDot from "@/components/ui/RoomDot";
 import { demoWorkspace } from "@/lib/mock-data";
 import { useCurrentAccount } from "@/lib/account-context";
 import { authHeader } from "@/lib/supabase/auth-header";
@@ -19,7 +20,10 @@ type Reservation = {
   status: "requested" | "confirmed" | "completed" | "cancelled";
   channel: string;
   guests: { full_name: string; email: string | null; phone: string | null } | { full_name: string; email: string | null; phone: string | null }[] | null;
-  rooms: { name: string; base_rate_cents: number | null } | { name: string; base_rate_cents: number | null }[] | null;
+  rooms:
+    | { name: string; base_rate_cents: number | null; color: string | null }
+    | { name: string; base_rate_cents: number | null; color: string | null }[]
+    | null;
   reservation_guests: { full_name: string; document_id: string | null; is_primary: boolean }[] | null;
   arrival_flight_time: string | null;
   arrival_flight_number: string | null;
@@ -233,7 +237,8 @@ export default function CalendarioPage() {
                 (primary), no el del contacto reutilizado (guest.full_name)
                 — mismo arreglo que en la lista de Reservas, ver
                 lib/guest-match.ts. */}
-            <p className="text-sm font-medium">
+            <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
+              <RoomDot color={room?.color} />
               <span className={kind === "arrival" ? "text-sage" : "text-rust"}>{room?.name ?? "—"}</span>
               <span className="text-ink"> — {primary?.full_name ?? guest?.full_name ?? "—"}</span>
             </p>

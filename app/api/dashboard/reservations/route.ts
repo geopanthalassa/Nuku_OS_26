@@ -49,7 +49,7 @@ export async function GET(req: Request) {
         // (app/(admin)/disponibilidad/page.tsx) para saber a qué fila del
         // cuadro pertenece cada reserva. No rompe nada existente: es un
         // campo que se suma, no se saca ninguno.
-        "id, room_id, guest_id, check_in, check_out, status, channel, payment_status, promo_code, total_cents, guest_count, internal_notes, stripe_payment_link, tour_interest, tour_notes, arrival_flight_time, arrival_flight_number, departure_flight_time, departure_flight_number, airport_transfer_notes, created_at, guests(full_name, email, phone), rooms(id, name, base_rate_cents), reservation_guests(id, full_name, document_id, nationality, birth_date, phone, email, is_primary, dietary_vegan, dietary_vegetarian, dietary_celiac, dietary_lactose_free, dietary_other, mobility_assistance, mobility_notes)"
+        "id, room_id, guest_id, check_in, check_out, status, channel, payment_status, promo_code, total_cents, guest_count, internal_notes, stripe_payment_link, tour_interest, tour_notes, arrival_flight_time, arrival_flight_number, departure_flight_time, departure_flight_number, airport_transfer_notes, created_at, guests(full_name, email, phone), rooms(id, name, base_rate_cents, color), reservation_guests(id, full_name, document_id, nationality, birth_date, phone, email, is_primary, dietary_vegan, dietary_vegetarian, dietary_celiac, dietary_lactose_free, dietary_other, mobility_assistance, mobility_notes)"
       )
       .eq("account_id", accountId)
       .order("check_in", { ascending: true });

@@ -37,6 +37,16 @@ const DEFAULT_AUTOMATIONS: Array<{ template_key: string; label: string; descript
     label: "Saludo de cumpleaños",
     description: "El día del cumpleaños del huésped (si lo dejó al reservar), le manda un saludo con descuento.",
   },
+  {
+    template_key: "recordatorio_llegada_huesped",
+    label: "Recordatorio al huésped: documento para el aeropuerto",
+    description: "3 días antes de la llegada, le recuerda al huésped qué debe mostrar en el aeropuerto para embarcar hacia Rapa Nui.",
+  },
+  {
+    template_key: "recordatorio_llegada_equipo",
+    label: "Aviso interno: llegadas en 3 días",
+    description: "3 días antes, le manda al equipo de Kuhane un resumen de quién llega, en qué habitación y sus datos de contacto.",
+  },
 ];
 
 export async function GET(req: Request) {

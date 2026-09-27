@@ -28,7 +28,7 @@ export async function GET(req: Request) {
     const supabase = getSupabaseServerClient();
     const { data: rooms, error } = await supabase
       .from("rooms")
-      .select("id, name, capacity, base_rate_cents")
+      .select("id, name, capacity, base_rate_cents, color")
       .eq("account_id", accountId)
       .order("name", { ascending: true });
 

@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import TopBar from "@/components/admin/TopBar";
+import RoomDot from "@/components/ui/RoomDot";
 import { demoWorkspace } from "@/lib/mock-data";
 import { useCurrentAccount } from "@/lib/account-context";
 import { authHeader } from "@/lib/supabase/auth-header";
@@ -27,7 +28,7 @@ import { authHeader } from "@/lib/supabase/auth-header";
 //   room_id incluido (se agregó en esta misma tarea) para poder agrupar
 //   cada reserva en la fila de su habitación.
 
-type Room = { id: string; name: string; capacity: number; base_rate_cents: number | null };
+type Room = { id: string; name: string; capacity: number; base_rate_cents: number | null; color: string | null };
 
 type Reservation = {
   id: string;
@@ -51,13 +52,18 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "Cancelada",
 };
 
-// Mismo color por estado que ya se usa en Reservas/Calendario (vía Pill),
-// pero acá como relleno sólido porque cada reserva es una barra, no un chip.
-const STATUS_BAR: Record<string, string> = {
-  requested: "bg-olive",
-  confirmed: "bg-sage",
-  completed: "bg-ink-faint",
-};
+// 27/9/2026: pedido de Andre — que el cuadro sea "más llamativo" y que las
+// habitaciones se distingan por color. Antes la barra usaba un color fijo
+// por ESTADO (verde/oliva/gris); ahora usa el color de la HABITACIÓN (el
+// mismo punto que aparece junto al nombre en la columna de la izquierda),
+// así una barra Calipso se ve igual acá que en Reservas. El estado se sigue
+// viendo, pero como estilo del borde/opacidad en vez de un color aparte —
+// ver barClassName() más abajo.
+function barClassName(status: Reservation["status"]) {
+  if (status === "requested") return "border-2 border-dashed border-white/80";
+  if (status === "completed") return "opacity-55";
+  return "border border-black/10"; // confirmed
+}
 
 const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const MS_DAY = 86400000;
@@ -210,16 +216,19 @@ export default function DisponibilidadPage() {
 
         <div className="flex flex-wrap items-center gap-4 text-[11px] text-ink-soft">
           <span className="flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded bg-sage" /> Confirmada
+            <span className="h-3 w-3 rounded bg-terracotta" /> Confirmada
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded bg-olive" /> Por confirmar
+            <span className="h-3 w-3 rounded border-2 border-dashed border-white bg-terracotta" /> Por confirmar
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded bg-ink-faint" /> Completada
+            <span className="h-3 w-3 rounded bg-terracotta opacity-55" /> Completada
           </span>
           <span className="flex items-center gap-1.5">
             <span className="h-3 w-3 rounded border border-line" /> Libre
+          </span>
+          <span className="flex items-center gap-1.5 text-ink-faint">
+            (el color de cada barra es el de su habitación — mismo punto que ves junto al nombre)
           </span>
         </div>
 
@@ -296,7 +305,10 @@ export default function DisponibilidadPage() {
                         className="sticky left-0 z-20 flex flex-col justify-center border-b border-r border-line bg-surface px-2 sm:px-3"
                         style={{ gridColumn: 1, gridRow: rIdx + 2 }}
                       >
-                        <span className="truncate text-[13px] font-medium text-ink sm:text-sm">{room.name}</span>
+                        <span className="flex items-center gap-1.5 truncate text-[13px] font-medium text-ink sm:text-sm">
+                          <RoomDot color={room.color} />
+                          <span className="truncate">{room.name}</span>
+                        </span>
                         <span className="truncate text-[11px] text-ink-faint">{room.capacity} pax</span>
                       </div>
 
@@ -318,8 +330,13 @@ export default function DisponibilidadPage() {
                         <div
                           key={bar.id}
                           title={`${bar.guestName} · ${STATUS_LABEL[bar.status]} · ${bar.check_in} → ${bar.check_out}`}
-                          className={`z-10 flex items-center truncate rounded-md px-2 text-[11px] font-medium text-white ${STATUS_BAR[bar.status]}`}
-                          style={{ gridColumn: `${bar.startCol} / ${bar.endCol}`, gridRow: rIdx + 2, margin: "7px 2px" }}
+                          className={`z-10 flex items-center truncate rounded-md px-2 text-[11px] font-medium text-white shadow-sm ${barClassName(bar.status)}`}
+                          style={{
+                            gridColumn: `${bar.startCol} / ${bar.endCol}`,
+                            gridRow: rIdx + 2,
+                            margin: "7px 2px",
+                            backgroundColor: room.color ?? "#8a8574",
+                          }}
                         >
                           {bar.guestName}
                         </div>

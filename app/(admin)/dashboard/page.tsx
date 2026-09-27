@@ -29,11 +29,11 @@ type Reservation = {
   channel: string;
   payment_status: string;
   total_cents: number | null;
-  guests: { full_name: string } | { full_name: string }[] | null;
+  guests: ({ full_name: string; email?: string | null; phone?: string | null }) | ({ full_name: string; email?: string | null; phone?: string | null })[] | null;
   rooms: { name: string } | { name: string }[] | null;
   // 23/9/2026: el nombre declarado en la reserva (titular) — la API ya lo
   // manda, solo faltaba usarlo acá. Ver nota junto a la tabla de abajo.
-  reservation_guests: { full_name: string; is_primary: boolean }[] | null;
+  reservation_guests: { full_name: string; is_primary: boolean; phone?: string | null; email?: string | null }[] | null;
 };
 
 type RoomOption = { id: string; name: string };
@@ -47,6 +47,17 @@ function todayKey() {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+// 27/9/2026: pedido de Andre — el mismo aviso que se manda por WhatsApp al
+// equipo (ver renderUpcomingArrivalsStaffDigest en lib/automations.ts)
+// también tiene que verse acá en el panel, sin depender de WhatsApp. Mismo
+// criterio de fecha (UTC + 3 días) que usa esa función, para que panel y
+// WhatsApp hablen siempre del mismo día.
+function dateInThreeDaysKey() {
+  const target = new Date();
+  target.setUTCDate(target.getUTCDate() + 3);
+  return target.toISOString().slice(0, 10);
 }
 
 export default function DashboardPage() {
@@ -101,6 +112,14 @@ export default function DashboardPage() {
     (r) => r.payment_status === "pending" && r.status !== "cancelled"
   ).length;
 
+  // Llegadas en 3 días: mismo recorte que usa el aviso interno por WhatsApp,
+  // pero calculado acá con lo que ya se cargó para "Próximas llegadas" — no
+  // hace falta pedirle nada nuevo al servidor.
+  const arrivalsTargetDate = dateInThreeDaysKey();
+  const arrivingInThreeDays = (reservations ?? []).filter(
+    (r) => r.status === "confirmed" && r.check_in === arrivalsTargetDate
+  );
+
   const STATUS_LABEL: Record<string, string> = {
     requested: "Por confirmar",
     confirmed: "Confirmada",
@@ -135,6 +154,35 @@ export default function DashboardPage() {
             hint="reservas por cobrar"
           />
         </div>
+
+        {reservations !== null && arrivingInThreeDays.length > 0 && (
+          <section className="rounded-xl border border-terracotta/30 bg-terracotta-bright/10 p-4">
+            <h2 className="mb-3 font-display text-lg text-terracotta">
+              Llegan en 3 días · para preparar
+            </h2>
+            <ul className="space-y-2">
+              {arrivingInThreeDays.map((r) => {
+                const guest = one(r.guests);
+                const room = one(r.rooms);
+                const people = r.reservation_guests ?? [];
+                const primaryGuest = people.find((p) => p.is_primary) ?? people[0];
+                const displayName = primaryGuest?.full_name ?? guest?.full_name ?? "—";
+                const contacto = primaryGuest?.phone || primaryGuest?.email || guest?.phone || guest?.email;
+                return (
+                  <li
+                    key={r.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface px-3 py-2 text-sm"
+                  >
+                    <span className="font-medium">{displayName}</span>
+                    <span className="text-ink-soft">{room?.name ?? "—"}</span>
+                    <span className="text-ink-soft">hasta {r.check_out}</span>
+                    <span className="text-ink-faint">{contacto ?? "sin contacto registrado"}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
 
         <section>
           <h2 className="mb-3 font-display text-lg">Próximas llegadas</h2>

@@ -1,8 +1,9 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import TopBar from "@/components/admin/TopBar";
 import Pill from "@/components/ui/Pill";
+import RoomDot from "@/components/ui/RoomDot";
 import { demoWorkspace } from "@/lib/mock-data";
 import { formatMoney, formatDateRange, nights } from "@/lib/format";
 import { useCurrentAccount } from "@/lib/account-context";
@@ -48,7 +49,10 @@ type Reservation = {
   guest_count: number | null;
   internal_notes: string | null;
   guests: { full_name: string; email: string | null; phone: string | null } | { full_name: string; email: string | null; phone: string | null }[] | null;
-  rooms: { name: string; base_rate_cents: number | null } | { name: string; base_rate_cents: number | null }[] | null;
+  rooms:
+    | { name: string; base_rate_cents: number | null; color: string | null }
+    | { name: string; base_rate_cents: number | null; color: string | null }[]
+    | null;
   reservation_guests:
     | {
         id: string;
@@ -78,11 +82,29 @@ type Reservation = {
   stripe_payment_link?: string | null;
 };
 
-type RoomOption = { id: string; name: string; capacity: number; base_rate_cents: number | null };
+type RoomOption = { id: string; name: string; capacity: number; base_rate_cents: number | null; color: string | null };
 
 function one<T>(rel: T | T[] | null): T | null {
   if (!rel) return null;
   return Array.isArray(rel) ? rel[0] ?? null : rel;
+}
+
+// 27/9/2026: pedido de Andre — "en las reservas debemos tener pestañas por
+// meses, si no es un quilombo, estoy viendo reservas de enero y necesito
+// las de ahora y las de octubre". La lista viene ordenada por check_in
+// ascendente (ver app/api/dashboard/reservations/route.ts), así que con
+// meses de historial reales el mes actual queda enterrado varias
+// pantallas más abajo. Estas dos funciones arman las pestañas a partir de
+// los check_in que realmente existen — no hay una lista fija de meses.
+function monthKey(dateStr: string) {
+  return dateStr.slice(0, 7); // "YYYY-MM"
+}
+
+function monthTabLabel(key: string) {
+  const [y, m] = key.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1, 1));
+  const label = new Intl.DateTimeFormat("es-CL", { month: "short", year: "numeric", timeZone: "UTC" }).format(d);
+  return label.charAt(0).toUpperCase() + label.slice(1).replace(".", "");
 }
 
 type PromoCodeLite = {
@@ -209,6 +231,10 @@ export default function ReservasPage() {
   const { accountId, accountName } = useCurrentAccount();
   const account = { ...demoWorkspace.account, name: accountName ?? demoWorkspace.account.name };
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
+  const [monthFilter, setMonthFilter] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
   const [currency, setCurrency] = useState("CLP");
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -300,6 +326,31 @@ export default function ReservasPage() {
     loadPromoCodes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId]);
+
+  // El filtro por mes arranca en el mes actual (ver useState de
+  // monthFilter más arriba). Si justo ese mes no tiene ninguna reserva
+  // real, salta sola al mes con datos más cercano hacia adelante (lo más
+  // probable es que sea lo próximo que Andre necesita ver) y si no hay
+  // ninguno futuro, se queda en el último mes con historial.
+  useEffect(() => {
+    if (!reservations || reservations.length === 0) return;
+    const months = Array.from(new Set(reservations.map((r) => monthKey(r.check_in)))).sort();
+    if (months.includes(monthFilter)) return;
+    const next = months.find((m) => m >= monthFilter) ?? months[months.length - 1];
+    setMonthFilter(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reservations]);
+
+  const availableMonths = useMemo(() => {
+    if (!reservations) return [];
+    return Array.from(new Set(reservations.map((r) => monthKey(r.check_in)))).sort();
+  }, [reservations]);
+
+  const visibleReservations = useMemo(() => {
+    if (!reservations) return [];
+    if (monthFilter === "all") return reservations;
+    return reservations.filter((r) => monthKey(r.check_in) === monthFilter);
+  }, [reservations, monthFilter]);
 
   async function updateStatus(r: Reservation, status: string) {
     if (!accountId) return;
@@ -738,7 +789,7 @@ export default function ReservasPage() {
                 >
                   <option value="">Todavía no se sabe — asignar después</option>
                   {(rooms ?? []).map((room) => (
-                    <option key={room.id} value={room.id}>
+                    <option key={room.id} value={room.id} style={room.color ? { color: room.color } : undefined}>
                       {room.name}
                     </option>
                   ))}
@@ -1003,6 +1054,36 @@ export default function ReservasPage() {
         )}
 
         {reservations && reservations.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setMonthFilter("all")}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                monthFilter === "all" ? "bg-terracotta text-paper" : "border border-line text-ink-soft hover:border-terracotta/40 hover:text-terracotta"
+              }`}
+            >
+              Todas
+            </button>
+            {availableMonths.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMonthFilter(m)}
+                className={`rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-colors ${
+                  monthFilter === m ? "bg-terracotta text-paper" : "border border-line text-ink-soft hover:border-terracotta/40 hover:text-terracotta"
+                }`}
+              >
+                {monthTabLabel(m)}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {reservations && reservations.length > 0 && visibleReservations.length === 0 && (
+          <p className="max-w-2xl text-sm text-ink-faint">No hay reservas ese mes. Prueba con otra pestaña de arriba.</p>
+        )}
+
+        {reservations && reservations.length > 0 && visibleReservations.length > 0 && (
           <div className="overflow-x-auto rounded-xl border border-line bg-surface">
             <table className="w-full text-sm">
               <thead>
@@ -1019,7 +1100,7 @@ export default function ReservasPage() {
                 </tr>
               </thead>
               <tbody>
-                {reservations.map((r) => {
+                {visibleReservations.map((r) => {
                   const guest = one(r.guests);
                   const room = one(r.rooms);
                   const stayNights = nights(r.check_in, r.check_out);
@@ -1053,7 +1134,10 @@ export default function ReservasPage() {
                       </td>
                       <td className="px-4 py-3 text-ink-soft">
                         {room?.name ? (
-                          room.name
+                          <span className="flex items-center gap-1.5">
+                            <RoomDot color={room.color} />
+                            {room.name}
+                          </span>
                         ) : assigningRoomFor === r.id ? (
                           <div className="flex flex-col gap-1.5">
                             <div className="flex items-center gap-1.5">
@@ -1065,7 +1149,7 @@ export default function ReservasPage() {
                               >
                                 <option value="">Elige…</option>
                                 {(rooms ?? []).map((room) => (
-                                  <option key={room.id} value={room.id}>
+                                  <option key={room.id} value={room.id} style={room.color ? { color: room.color } : undefined}>
                                     {room.name}
                                   </option>
                                 ))}
@@ -1282,7 +1366,7 @@ export default function ReservasPage() {
                                   >
                                     <option value="">Todavía no se sabe — asignar después</option>
                                     {(rooms ?? []).map((room) => (
-                                      <option key={room.id} value={room.id}>
+                                      <option key={room.id} value={room.id} style={room.color ? { color: room.color } : undefined}>
                                         {room.name}
                                       </option>
                                     ))}
