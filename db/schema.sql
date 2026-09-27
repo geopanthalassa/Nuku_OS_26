@@ -76,11 +76,15 @@ create table rooms (
   name text not null,                     -- ej. "Habitación Ariki"
   capacity int not null default 2,
   base_rate_cents bigint,                 -- null = sin precio real todavía
+  color text,                             -- hex (#rrggbb), null = sin color asignado
   created_at timestamptz not null default now()
 );
 
 comment on column rooms.base_rate_cents is
   'Tarifa de referencia por noche. Para 5 de las 7 habitaciones viene de un snapshot real de Booking.com (29-ago-2026, posible tarifa de temporada alta/poca disponibilidad) — confirmar con Kuhane si es representativa. Habitación Doble Estándar y Triple Estándar siguen sin precio real.';
+
+comment on column rooms.color is
+  '27/9/2026: pedido de Andre — distinguir habitaciones por color además del nombre, en Reservas/Calendario/Disponibilidad. Paleta elegida a mano jugando con los tonos de marca de Kuhane (terracota, naranja, azul petróleo, calipso) — ver RoomDot en components/ui/RoomDot.tsx.';
 
 create table rate_plans (
   id uuid primary key default gen_random_uuid(),
