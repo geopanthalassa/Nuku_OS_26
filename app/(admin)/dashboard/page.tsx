@@ -66,6 +66,17 @@ function dateInThreeDaysKey() {
   return target.toISOString().slice(0, 10);
 }
 
+// 28/9/2026: pedido de Andre — "podrías poner, mañana check out de...".
+// Aviso adelantado de las salidas de MAÑANA (no solo las de hoy), para que
+// el equipo pueda preparar el traslado al aeropuerto con un día de anticipo
+// en vez de enterarse recién esa misma mañana.
+function tomorrowKey() {
+  const target = new Date();
+  target.setDate(target.getDate() + 1);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(target.getDate())}`;
+}
+
 export default function DashboardPage() {
   const { accountId, accountName } = useCurrentAccount();
   const account = { ...demoWorkspace.account, name: accountName ?? demoWorkspace.account.name };
@@ -132,6 +143,11 @@ export default function DashboardPage() {
   // coordinado un traslado (vuelo/hora cargados en la ficha) o si todavía
   // hay que preguntarle al huésped.
   const departingToday = (reservations ?? []).filter((r) => r.status === "confirmed" && r.check_out === today);
+
+  // 28/9/2026: mismo criterio que "Se van hoy" pero un día antes, para
+  // avisar con anticipación en vez de recién la misma mañana.
+  const tomorrow = tomorrowKey();
+  const departingTomorrow = (reservations ?? []).filter((r) => r.status === "confirmed" && r.check_out === tomorrow);
 
   const STATUS_LABEL: Record<string, string> = {
     requested: "Por confirmar",
@@ -202,6 +218,42 @@ export default function DashboardPage() {
             <h2 className="mb-3 font-display text-lg text-sage">Se van hoy</h2>
             <ul className="space-y-2">
               {departingToday.map((r) => {
+                const guest = one(r.guests);
+                const room = one(r.rooms);
+                const people = r.reservation_guests ?? [];
+                const primaryGuest = people.find((p) => p.is_primary) ?? people[0];
+                const displayName = primaryGuest?.full_name ?? guest?.full_name ?? "—";
+                const hasTransfer = Boolean(
+                  r.departure_flight_time || r.departure_flight_number || r.airport_transfer_notes
+                );
+                return (
+                  <li
+                    key={r.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface px-3 py-2 text-sm"
+                  >
+                    <span className="font-medium">{displayName}</span>
+                    <span className="text-ink-soft">{room?.name ?? "—"}</span>
+                    {hasTransfer ? (
+                      <span className="flex items-center gap-1.5 text-ink-soft">
+                        <Pill tone="sage">Traslado coordinado</Pill>
+                        {r.departure_flight_time ?? ""}
+                        {r.departure_flight_number ? ` · ${r.departure_flight_number}` : ""}
+                      </span>
+                    ) : (
+                      <Pill tone="olive">Sin traslado coordinado</Pill>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+
+        {reservations !== null && departingTomorrow.length > 0 && (
+          <section className="rounded-xl border border-line bg-paper-alt/60 p-4">
+            <h2 className="mb-3 font-display text-lg text-ink">Mañana se van</h2>
+            <ul className="space-y-2">
+              {departingTomorrow.map((r) => {
                 const guest = one(r.guests);
                 const room = one(r.rooms);
                 const people = r.reservation_guests ?? [];
